@@ -1,0 +1,159 @@
+:root {
+  --bg: #101c26;
+  --panel: #172836;
+  --line: #24394a;
+  --ink: #e8f1f2;
+  --muted: #8aa3b0;
+  --coral: #ff8a6b;
+  --display: 'Baloo 2', 'Trebuchet MS', system-ui, sans-serif;
+  --body: 'Nunito', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color-scheme: dark;
+}
+[hidden] {
+  display: none !important;
+}
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--body);
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 560px;
+  margin: 0 auto;
+  padding-top: max(12px, env(safe-area-inset-top, 0px));
+  padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.hud {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.stat {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.05;
+  min-width: 52px;
+}
+.stat b {
+  font-family: var(--display);
+  font-size: 1.4rem;
+  font-weight: 800;
+}
+.stat span {
+  font-size: 0.66rem;
+  color: var(--muted);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+.spacer {
+  flex: 1;
+}
+.btn {
+  white-space: nowrap;
+  font: 700 0.85rem var(--body);
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+.btn.hot {
+  background: var(--coral);
+  color: #2a0f08;
+  border-color: transparent;
+}
+.btn:focus-visible {
+  outline: 2px solid var(--coral);
+  outline-offset: 2px;
+}
+.pips {
+  display: flex;
+  gap: 3px;
+  margin-top: 3px;
+}
+.pips i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--line);
+}
+.pips i.on {
+  background: var(--coral);
+}
+.stage {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  border-radius: 20px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  overflow: hidden;
+  touch-action: none;
+}
+.stage canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.rule {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+.rule b {
+  color: var(--ink);
+}
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 18, 25, 0.72);
+  backdrop-filter: blur(3px);
+}
+.card {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+  padding: 24px;
+}
+.card h2 {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 2rem;
+  margin: 0;
+  line-height: 1;
+}
+.card p {
+  margin: 0;
+  color: var(--muted);
+}

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Sum Drop</string>
+    <string name="title_activity_main">Sum Drop</string>
+    <string name="package_name">com.natemiles.sumdrop</string>
+    <string name="custom_url_scheme">com.natemiles.sumdrop</string>
+</resources>

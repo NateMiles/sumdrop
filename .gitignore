@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.DS_Store
+*.log
+# Native build output (the ios/ and android/ projects themselves are committed once generated)
+ios/App/Pods/
+ios/App/build/
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
