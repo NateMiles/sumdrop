@@ -55,6 +55,7 @@ export const catTheme: Theme = {
     rule:
       '<b>Fill every heart.</b> Each cat touching a cat fills as many of its hearts as it has. All hearts filled, it falls asleep. Too many and the hearts turn red. Same-colored cats nap together.',
     mouseHint: 'Hover a column to preview where your cat lands.',
+    boost: 'Night light',
     winTitle: 'Sweet dreams!',
   },
 };

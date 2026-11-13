@@ -524,3 +524,15 @@ body.playing .sky {
   opacity: 0.45;
   cursor: default;
 }
+
+/* ---------- per-world backdrops ---------- */
+body[data-art='gems'] {
+  background: linear-gradient(180deg, #0d1a33 0%, #14294a 50%, #1d3a5c 82%, #2a4f6e 100%) fixed;
+}
+body[data-art='gems'] .roofs,
+body[data-art='cats'] .crystals {
+  display: none;
+}
+body[data-art='gems'] #stars {
+  fill: #c3e4ff;
+}

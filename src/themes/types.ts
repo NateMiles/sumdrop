@@ -63,6 +63,8 @@ export interface ThemeWords {
   mouseHint: string;
   /** Title on a won level card. */
   winTitle: string;
+  /** Name of the full-chain preview boost: "Night light". */
+  boost: string;
 }
 
 export interface Theme {
