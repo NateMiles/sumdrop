@@ -81,7 +81,7 @@ export const LEVELS: LevelDef[] = [
     id: 'a2',
     world: 'alley',
     name: 'Blue hour',
-    coach: 'Night light shows every cat your next drop puts to sleep, chains included. You get 3 per level.',
+    coach: 'Glowing cats fall asleep right away. Night light also shows the whole chain after that. You get 3 per level.',
     goal: { kind: 'sleep', count: 14 },
     rows: 7,
     board: ['.3....', '.1.3.3', '314141'],

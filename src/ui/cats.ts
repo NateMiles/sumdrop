@@ -158,11 +158,14 @@ export interface CatDrawOpts {
    * all hearts red when it has too much. Without it, all hearts are plain white.
    */
   warmth?: number;
+  /** Warmth before a previewed drop: hearts from here up to `warmth` glow gold as new. */
+  gainFrom?: number;
 }
 
 const HEART_FILL = '#ffffff';
 const HEART_HOT = '#ff5a5f';
 const HEART_HOLLOW = 'rgba(30,20,50,.38)';
+const HEART_NEW = '#ffd27a';
 
 /** Draws one cat tile into the square at (x, y) with side `size`. */
 export function drawCat(ctx: CanvasRenderingContext2D, sprites: CatSprites, x: number, y: number, size: number, v: number, o: CatDrawOpts = {}): void {
@@ -190,11 +193,17 @@ export function drawCat(ctx: CanvasRenderingContext2D, sprites: CatSprites, x: n
     const hs = v >= 6 ? 1.12 : 1.25;
     for (let i = 0; i < v; i++) {
       const filled = w === undefined || hot || i < w;
+      const isNew = !hot && w !== undefined && o.gainFrom !== undefined && i >= o.gainFrom && i < w;
       ctx.save();
       ctx.translate(50 + (i - (v - 1) / 2) * gap, 92.2);
       ctx.scale(hs, hs);
-      ctx.fillStyle = hot ? HEART_HOT : filled ? HEART_FILL : HEART_HOLLOW;
+      ctx.fillStyle = hot ? HEART_HOT : isNew ? HEART_NEW : filled ? HEART_FILL : HEART_HOLLOW;
+      if (isNew || (hot && o.gainFrom !== undefined)) {
+        ctx.shadowColor = hot ? HEART_HOT : HEART_NEW;
+        ctx.shadowBlur = 8;
+      }
       ctx.fill(HEART);
+      ctx.shadowBlur = 0;
       if (!filled) {
         ctx.strokeStyle = 'rgba(255,255,255,.9)';
         ctx.lineWidth = 1.1;

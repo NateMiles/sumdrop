@@ -13,6 +13,7 @@ class CatArt implements PieceArt {
     drawCat(ctx, this.sprites, x, y, size, v, {
       ratio: o.ratio,
       warmth: o.received,
+      gainFrom: o.receivedBefore,
       stripes: o.neighbors,
       face: o.mood ? FACE[o.mood] : undefined,
       cushion: o.base,

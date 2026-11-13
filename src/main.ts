@@ -5,6 +5,7 @@ import '@fontsource/nunito/latin-700.css';
 import './style.css';
 
 import { Game } from './core/game';
+import { previewDrop } from './core/rules';
 import { type LevelDef, goalProgress, goalText, levelConfig, levelResult } from './core/level';
 import { LEVELS, WORLDS, nextLevel, worldOf } from './core/levels';
 import { BoardView } from './ui/board';
@@ -437,4 +438,5 @@ void boot();
     if (def) startLevel(def, false);
   },
   startEndless,
+  preview: (col: number) => previewDrop(game.grid, col, game.current),
 };
