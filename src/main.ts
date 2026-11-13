@@ -6,10 +6,10 @@ import './style.css';
 
 import { Game } from './core/game';
 import { type LevelDef, goalProgress, goalText, levelConfig, levelResult } from './core/level';
-import { LEVELS, WORLDS, nextLevel } from './core/levels';
+import { LEVELS, WORLDS, nextLevel, worldOf } from './core/levels';
 import { BoardView } from './ui/board';
 import { Sfx } from './ui/audio';
-import { catBodySvg, familyColor } from './ui/cats';
+import { DEFAULT_THEME, type Theme, themeById } from './themes';
 import { haptics, storage } from './ui/platform';
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector(sel) as T;
@@ -24,15 +24,18 @@ let best = 0;
 let shownScore = 0;
 /** Best stars per level id. A level is beaten when it has 1 or more. */
 let progress: Record<string, number> = {};
+/** Night light boosts left in this level or Endless run. */
+const NIGHT_LIGHTS_PER_RUN = 3;
+let nightLights = NIGHT_LIGHTS_PER_RUN;
 
 /* ---------- small svg bits ---------- */
 
 const STAR_PATH = 'M12 2.6l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.4l-5.8 3.1 1.1-6.5-4.7-4.6 6.5-.9z';
 const star = (on: boolean, cls = '') =>
   `<svg viewBox="0 0 24 24" class="${cls}" aria-hidden="true"><path d="${STAR_PATH}" fill="${on ? '#ffd27a' : '#3a3062'}" stroke="${on ? '#f2a46b' : '#4a3f78'}" stroke-width="1.4" stroke-linejoin="round"/></svg>`;
-const HEART = `<svg viewBox="-6 -6 12 10" aria-hidden="true"><path d="M0 3.2C-3.6 0.4 -5 -1.2 -5 -2.8C-5 -4.4 -3.8 -5.4 -2.5 -5.4C-1.4 -5.4 -0.5 -4.8 0 -4C0.5 -4.8 1.4 -5.4 2.5 -5.4C3.8 -5.4 5 -4.4 5 -2.8C5 -1.2 3.6 0.4 0 3.2Z" fill="#ef6f6c"/></svg>`;
-const catImg = (v: number, face: 'awake' | 'asleep' = 'awake') =>
-  `<img alt="" src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(catBodySvg(v, face))}">`;
+/** The theme in play: the level's world, or the default for Endless. */
+const currentTheme = (): Theme => (mode.kind === 'level' ? themeById(worldOf(mode.def).theme) : DEFAULT_THEME);
+const pieceImg = (theme: Theme, v: number) => `<img alt="" src="${theme.art.iconUrl(v)}">`;
 
 /* ---------- board ---------- */
 
@@ -84,10 +87,10 @@ function renderMap(): void {
         const open = unlocked(i);
         const stars = progress[l.id] ?? 0;
         const cls = ['node', open ? '' : 'locked', stars ? 'done' : '', i === currentIdx ? 'current' : ''].join(' ');
-        const color = familyColor((k % 6) + 1);
+        const color = themeById(w.theme).art.color((k % 6) + 1);
         const label = open ? String(k + 1) : '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M7 11V8a5 5 0 0 1 10 0v3M6 11h12v9H6z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/></svg>';
         return `<button class="${cls}" style="grid-row:${row + 1};grid-column:${col + 1};--node:${color}" data-level="${l.id}" ${open ? '' : 'disabled'} aria-label="Level ${k + 1}, ${l.name}${open ? `, ${stars} stars` : ', locked'}">
-          ${i === currentIdx ? `<span class="cat">${catImg(1)}</span>` : ''}
+          ${i === currentIdx ? `<span class="cat">${pieceImg(themeById(w.theme), 1)}</span>` : ''}
           <span class="disc">${label}</span>
           <span class="mini-stars">${open && stars ? [1, 2, 3].map((n) => star(n <= stars)).join('') : ''}</span>
         </button>`;
@@ -112,9 +115,20 @@ function renderSound(): void {
 
 /* ---------- HUD ---------- */
 
-const GOAL_LABEL: Record<string, string> = { sleep: 'Cats', score: 'Target', chain: 'Chain', clear: 'Cats left' };
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+function renderTools(): void {
+  const tutorial = mode.kind === 'level' && mode.def.world === 'tutorial';
+  $('.tools').hidden = tutorial;
+  const night = $<HTMLButtonElement>('#night');
+  night.setAttribute('aria-pressed', String(board.nightLight));
+  night.disabled = nightLights <= 0 && !board.nightLight;
+  $('#night-count').textContent = String(nightLights);
+  $<HTMLButtonElement>('#swap').disabled = game.over;
+}
 
 function renderHud(): void {
+  renderTools();
   const isLevel = mode.kind === 'level';
   $('#score').textContent = String(shownScore);
   if (!isLevel && shownScore > best) {
@@ -132,7 +146,9 @@ function renderHud(): void {
   const { def } = mode;
   const p = goalProgress(def.goal, game);
   const g = def.goal;
-  $('#goal-label').textContent = g.kind === 'sleep' && g.size ? 'Goal' : GOAL_LABEL[g.kind];
+  const pieces = cap(currentTheme().words.pieces);
+  $('#goal-label').textContent =
+    g.kind === 'sleep' ? (g.size ? 'Goal' : pieces) : g.kind === 'score' ? 'Target' : g.kind === 'chain' ? 'Chain' : `${pieces} left`;
   $('#goal-num').textContent =
     g.kind === 'score' ? String(g.target) : g.kind === 'clear' ? String(p.need - p.have) : `${Math.min(p.have, p.need)}/${p.need}`;
   $('#drops').textContent = String(game.dropsLeft);
@@ -161,6 +177,8 @@ function startLevel(def: LevelDef, intro = true): void {
 }
 
 function enterPlay(): void {
+  nightLights = NIGHT_LIGHTS_PER_RUN;
+  board.nightLight = false;
   board.sync();
   shownScore = 0;
   $('#over').hidden = true;
@@ -169,25 +187,30 @@ function enterPlay(): void {
   $('#coach').hidden = !coach;
   $('#coach').textContent = coach ?? '';
   $('#rule').hidden = !!coach;
+  const theme = currentTheme();
+  $('#rule').innerHTML = theme.words.rule;
+  board.art = theme.art;
+  board.words = theme.words;
   showScreen('play');
   renderHud();
 }
 
 function levelNumber(def: LevelDef): string {
   const inWorld = LEVELS.filter((l) => l.world === def.world);
-  const world = WORLDS.find((w) => w.id === def.world)!;
+  const world = worldOf(def);
   return `${world.name} · Level ${inWorld.indexOf(def) + 1}`;
 }
 
 function showIntro(def: LevelDef): void {
   $('#intro-world').textContent = levelNumber(def);
   $('#intro-title').textContent = def.name;
-  $('#intro-goal').textContent = `${goalText(def.goal)} in ${def.drops} drops`;
+  const theme = themeById(worldOf(def).theme);
+  $('#intro-goal').textContent = `${goalText(def.goal, theme.words)} in ${def.drops} drops`;
   // Show every cat size in play, with its hearts, so sizes are never a guess.
   const inPlay = new Set<number>([...(def.queue ?? []), ...(def.board ?? []).join('').split('').filter((ch) => ch >= '1' && ch <= '6').map(Number)]);
   const maxV = Math.max(def.maxValue ?? 0, ...inPlay);
   const sizes = Array.from({ length: maxV }, (_, i) => i + 1);
-  $('#intro-sizes').innerHTML = sizes.map((v) => `<figure>${catImg(v)}<figcaption>${v}${HEART}</figcaption></figure>`).join('');
+  $('#intro-sizes').innerHTML = sizes.map((v) => `<figure>${pieceImg(theme, v)}<figcaption>${v}${theme.art.unitSvg}</figcaption></figure>`).join('');
   $('#intro').hidden = false;
 }
 
@@ -220,7 +243,7 @@ function showEnd(): void {
         void storage.set('progress', progress);
       }
       $('#over-stars').innerHTML = [1, 2, 3].map((n) => star(n <= res.stars, n <= res.stars ? 'earned' : '')).join('');
-      $('#over-title').textContent = def.world === 'tutorial' ? 'Sweet dreams!' : 'Level complete!';
+      $('#over-title').textContent = currentTheme().words.winTitle;
       $('#over-text').textContent =
         res.bonus > 0 ? `Score ${fmt(res.score)}, including +${fmt(res.bonus)} for ${game.dropsLeft} drops left` : `Score ${fmt(res.score)}`;
       retry.textContent = 'Replay';
@@ -234,12 +257,12 @@ function showEnd(): void {
       $('#over-title').textContent = game.endReason === 'full' ? 'The alley is full' : 'Out of drops';
       const left =
         def.goal.kind === 'clear'
-          ? `${p.need - p.have} cats still awake`
+          ? `${p.need - p.have} ${currentTheme().words.pieces} ${currentTheme().words.notCleared}`
           : def.goal.kind === 'score'
             ? `${fmt(game.score)} of ${fmt(def.goal.target)} points`
             : def.goal.kind === 'chain'
               ? `Longest chain ×${game.longestChain} of ×${def.goal.length}`
-              : `${p.have} of ${p.need} tucked in`;
+              : `${p.have} of ${p.need} ${currentTheme().words.cleared}`;
       $('#over-text').textContent = left;
       retry.textContent = 'Try again';
       retry.className = 'btn hot';
@@ -266,6 +289,11 @@ async function drop(col: number): Promise<void> {
     board.showHint = false;
     void storage.set('seenHint', true);
   }
+  // A lit night light is used up by the drop it showed.
+  if (board.nightLight) {
+    board.nightLight = false;
+    nightLights--;
+  }
   renderHud();
   await board.play(out);
 }
@@ -280,6 +308,10 @@ canvas.addEventListener('pointerleave', (e) => {
 });
 canvas.addEventListener('pointerdown', (e) => {
   sfx.unlock();
+  if (board.hitsNext(e.clientX, e.clientY)) {
+    swap();
+    return;
+  }
   board.mouse = e.pointerType === 'mouse';
   board.pressing = true;
   board.hover = board.columnAt(e.clientX);
@@ -329,6 +361,26 @@ $('#over-next').addEventListener('click', () => {
   const nxt = nextLevel(mode.def.id);
   if (nxt) startLevel(nxt);
 });
+function swap(): void {
+  if (board.busy || inputBlocked() || !game.swap()) return;
+  sfx.unlock();
+  sfx.drop();
+  haptics.tap();
+  board.swapped();
+}
+$('#swap').addEventListener('click', swap);
+$('#night').addEventListener('click', () => {
+  if (game.over || inputBlocked()) return;
+  // Toggle: turning it on costs nothing until you drop; turning it off again is free.
+  if (!board.nightLight && nightLights <= 0) return;
+  board.nightLight = !board.nightLight;
+  if (board.nightLight) {
+    sfx.unlock();
+    sfx.toggleChime();
+  }
+  renderTools();
+});
+
 $('#sound').addEventListener('click', () => {
   sfx.muted = !sfx.muted;
   void storage.set('muted', sfx.muted);

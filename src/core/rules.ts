@@ -169,8 +169,13 @@ export interface Wave {
   falls: Fall[];
 }
 
+/** Point multiplier for a chain step: ×1, ×2, ×4, ×8... so setting up chains pays off. */
+export function chainMultiplier(chain: number): number {
+  return 2 ** Math.min(chain - 1, 6);
+}
+
 export function wavePoints(popped: PoppedTile[], chain: number): number {
-  return popped.reduce((sum, p) => sum + p.tile.v * POINTS_PER_DOT * chain, 0);
+  return popped.reduce((sum, p) => sum + p.tile.v * POINTS_PER_DOT * chainMultiplier(chain), 0);
 }
 
 /** Runs pops and gravity until the board is stable. Mutates g. */

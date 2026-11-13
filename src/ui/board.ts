@@ -1,7 +1,7 @@
 import { type Grid, type Wave, PREVIEW_ID, applyGravity, cloneGrid, neighborSum, previewDrop } from '../core/rules';
 import type { DropOutcome, Game } from '../core/game';
 import { palette } from './theme';
-import { CatSprites, drawCat, faceFor, familyColor } from './cats';
+import { DEFAULT_THEME, moodFor, type Mood, type PieceArt, type ThemeWords } from '../themes';
 import type { Sfx } from './audio';
 import { haptics } from './platform';
 import { warningWobble } from './warning';
@@ -31,6 +31,10 @@ export class BoardView {
   mouse = false;
   busy = false;
   showHint = false;
+  /** Night light boost: the preview also shows everything the drop would put to sleep. */
+  nightLight = false;
+  /** Swap animation progress, 1 → 0. */
+  private swapFx = 0;
   private view: Grid;
   private vis = new Map<number, Vis>();
   private fx: PopFx[] = [];
@@ -40,8 +44,9 @@ export class BoardView {
   private shake = 0;
   /** Time the rise warning started, or -1 when it isn't showing. */
   private warnSince = -1;
-  /** Cat art; resolves once every sprite has loaded. */
-  readonly sprites = new CatSprites();
+  /** The current world's piece art and words. Set per level or mode. */
+  art: PieceArt = DEFAULT_THEME.art;
+  words: ThemeWords = DEFAULT_THEME.words;
   private w = 0;
   private h = 0;
   private ctx: CanvasRenderingContext2D;
@@ -95,6 +100,25 @@ export class BoardView {
     const rect = this.canvas.getBoundingClientRect();
     const g = this.geom();
     return Math.max(0, Math.min(this.game.cols - 1, Math.floor((clientX - rect.left - g.x0) / g.cell)));
+  }
+
+  /** True when a client point is on the small "next" piece (tapping it swaps). */
+  hitsNext(clientX: number, clientY: number): boolean {
+    const rect = this.canvas.getBoundingClientRect();
+    const g = this.geom();
+    const ns = g.cell * 0.5;
+    const leftSide = this.hover >= this.game.cols - 2;
+    const nx = leftSide ? g.x0 : g.x0 + g.bw - ns;
+    const ny = g.y0 - g.cell * 1.3 + (g.cell - ns) / 2;
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    const pad = g.cell * 0.25;
+    return x >= nx - pad && x <= nx + ns + pad && y >= ny - pad && y <= ny + ns + pad;
+  }
+
+  /** Plays the swap animation (the game state has already swapped). */
+  swapped(): void {
+    this.swapFx = 1;
   }
 
   bump(amount: number): void {
@@ -169,7 +193,7 @@ export class BoardView {
     for (let i = 0; i < 14; i++) {
       const a = Math.random() * Math.PI * 2;
       const sp = 0.04 + Math.random() * 0.09;
-      this.parts.push({ x: c + 0.5, y: r + 0.5, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 0.05, life: 1, col: familyColor(v), s: 0.06 + Math.random() * 0.07 });
+      this.parts.push({ x: c + 0.5, y: r + 0.5, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 0.05, life: 1, col: this.art.color(v), s: 0.06 + Math.random() * 0.07 });
     }
   }
 
@@ -192,7 +216,15 @@ export class BoardView {
 
     const canPreview = !this.busy && !game.over && (this.mouse || this.pressing);
     const pv = canPreview ? previewDrop(game.grid, this.hover, game.current) : null;
-    const waveOf = (id: number) => pv?.waveOf.get(id) ?? -1;
+    // Without the night light, the preview is local: where the cat lands and the warmth it
+    // gives its neighbors. With it, every cat the drop would put to sleep glows too.
+    const waveOf = (id: number) => (this.nightLight ? (pv?.waveOf.get(id) ?? -1) : -1);
+    let pvGrid: Grid | null = null;
+    if (pv) {
+      pvGrid = cloneGrid(game.grid);
+      pvGrid[pv.row][pv.col] = { id: PREVIEW_ID, v: game.current };
+    }
+    const isNeighborOfPreview = (r: number, c: number) => !!pv && Math.abs(r - pv.row) + Math.abs(c - pv.col) === 1;
     const pulse = 0.5 + 0.5 * Math.sin(t / 140);
 
     // board and columns
@@ -251,9 +283,12 @@ export class BoardView {
         vs.fill += ((over ? 1 : sum / tl.v) - vs.fill) * Math.min(1, dt / 90);
         vs.flash = Math.max(0, vs.flash - dt / 200);
         const wv = waveOf(tl.id);
-        drawCatTile(ctx, this.sprites, g.x0 + c * g.cell, g.y0 + vs.y * g.cell, g.cell, tl.v, {
+        // Hearts show warmth; next to the previewed drop they show the warmth it would get.
+        const warmth = pvGrid && isNeighborOfPreview(r, c) ? neighborSum(pvGrid, r, c) : sum;
+        drawPieceTile(ctx, this.art, g.x0 + c * g.cell, g.y0 + vs.y * g.cell, g.cell, tl.v, {
+          warmth,
           ratio: vs.fill,
-          face: faceFor(sum / tl.v),
+          mood: moodFor(sum / tl.v),
           stripes: neighborValues(this.view, r, c),
           flash: vs.flash,
           glow: wv === 0 ? 0.5 + 0.5 * pulse : 0,
@@ -265,11 +300,12 @@ export class BoardView {
     if (pv) {
       const lf = pv.landingFill;
       const gw = waveOf(PREVIEW_ID);
-      drawCatTile(ctx, this.sprites, g.x0 + pv.col * g.cell, g.y0 + pv.row * g.cell, g.cell, game.current, {
+      drawPieceTile(ctx, this.art, g.x0 + pv.col * g.cell, g.y0 + pv.row * g.cell, g.cell, game.current, {
+        warmth: Math.round(lf * game.current),
         ratio: Math.min(1, lf),
-        face: faceFor(lf),
+        mood: moodFor(lf),
         stripes: neighborValues(game.grid, pv.row, pv.col),
-        alpha: 0.6,
+        alpha: 0.7,
         glow: gw === 0 ? pulse : 0,
         badge: gw > 0 ? `×${gw + 1}` : null,
       });
@@ -281,10 +317,7 @@ export class BoardView {
     for (const f of this.fx) {
       const x = g.x0 + f.c * g.cell;
       const y = g.y0 + f.r * g.cell;
-      const k = 1 - f.life;
-      // The cat dozes off and drifts up out of its cushion.
-      const drift = this.reduced ? 0 : k * k * g.cell * 1.1;
-      drawCat(ctx, this.sprites, x + Math.sin(k * 6) * g.cell * 0.04, y - drift, g.cell, f.v, { face: 'asleep', ratio: 1, cushion: false, alpha: f.life });
+      this.art.drawClearing(ctx, x, y, g.cell, f.v, 1 - f.life, this.reduced);
     }
     this.parts = this.parts.filter((p) => (p.life -= dt / 700) > 0);
     for (const p of this.parts) {
@@ -303,17 +336,23 @@ export class BoardView {
     if (!game.over) {
       const hx = g.x0 + this.hover * g.cell;
       const hy = g.y0 - g.cell * 1.3;
-      drawCat(ctx, this.sprites, hx, hy, g.cell, game.current, { ratio: 0, alpha: this.busy ? 0.45 : 1 });
       const ns = g.cell * 0.5;
       const leftSide = this.hover >= cols - 2;
       const nx = leftSide ? g.x0 : g.x0 + g.bw - ns;
-      drawCat(ctx, this.sprites, nx, hy + (g.cell - ns) / 2, ns, game.next, { ratio: 0, alpha: 0.8 });
+      const ny = hy + (g.cell - ns) / 2;
+      // Swap animation: the two cats trade places along a short arc.
+      this.swapFx = Math.max(0, this.swapFx - dt / 220);
+      const k = this.reduced ? 0 : this.swapFx * this.swapFx;
+      const lerp = (a: number, b: number) => a + (b - a) * k;
+      const lift = Math.sin(k * Math.PI) * g.cell * 0.35;
+      this.art.draw(ctx, lerp(hx, nx), lerp(hy, ny) - lift, lerp(g.cell, ns), game.current, { ratio: 0, alpha: this.busy ? 0.45 : 1 });
+      this.art.draw(ctx, lerp(nx, hx), lerp(ny, hy) + lift, lerp(ns, g.cell), game.next, { ratio: 0, alpha: 0.8 });
       ctx.fillStyle = palette.muted;
       ctx.font = `700 ${Math.max(10, g.cell * 0.17)}px Nunito, system-ui, sans-serif`;
       ctx.textBaseline = 'middle';
       ctx.textAlign = leftSide ? 'left' : 'right';
       ctx.fillText('NEXT', leftSide ? nx + ns + 6 : nx - 6, hy + g.cell / 2);
-      if (pv && pv.waves) {
+      if (pv && pv.waves && this.nightLight) {
         const label = pv.waves > 1 ? `Chain ×${pv.waves}  +${pv.points}` : `Pop!  +${pv.points}`;
         ctx.font = `800 ${g.cell * 0.3}px "Baloo 2", system-ui, sans-serif`;
         ctx.textAlign = 'center';
@@ -369,7 +408,7 @@ export class BoardView {
       ctx.save();
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      const msg = this.mouse ? 'Hover a column to preview. Glowing cats fall asleep.' : 'Hold a column to preview. Let go to drop.';
+      const msg = this.mouse ? this.words.mouseHint : 'Hold a column to preview. Let go to drop.';
       ctx.font = `700 ${Math.max(12, g.cell * 0.22)}px Nunito, system-ui, sans-serif`;
       const tw = ctx.measureText(msg).width + 24;
       const bx = this.w / 2;
@@ -403,9 +442,10 @@ function neighborValues(g: Grid, r: number, c: number): number[] {
   return out;
 }
 
-interface CatTileOpts {
+interface PieceTileOpts {
   ratio: number;
-  face?: ReturnType<typeof faceFor>;
+  warmth?: number;
+  mood?: Mood;
   stripes?: number[];
   alpha?: number;
   glow?: number;
@@ -415,10 +455,10 @@ interface CatTileOpts {
   cushion?: boolean;
 }
 
-/** A cat tile plus the board's overlays: preview glow, cascade badge and pop flash. */
-function drawCatTile(ctx: CanvasRenderingContext2D, sprites: CatSprites, x: number, y: number, s: number, v: number, o: CatTileOpts): void {
+/** A piece plus the board's overlays: preview glow, cascade badge and clear flash. */
+function drawPieceTile(ctx: CanvasRenderingContext2D, art: PieceArt, x: number, y: number, s: number, v: number, o: PieceTileOpts): void {
   const { glow = 0, badge = null, flash = 0, wobble = 0 } = o;
-  drawCat(ctx, sprites, x + wobble, y, s, v, { ratio: o.ratio, face: o.face, stripes: o.stripes, alpha: o.alpha, cushion: o.cushion });
+  art.draw(ctx, x + wobble, y, s, v, { ratio: o.ratio, mood: o.mood, neighbors: o.stripes, alpha: o.alpha, base: o.cushion, received: o.warmth });
   if (glow > 0) {
     ctx.save();
     rrect(ctx, x + 2, y + 2, s - 4, s - 4, s * 0.2);

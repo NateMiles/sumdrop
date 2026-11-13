@@ -2,13 +2,13 @@ import type { Game, GameConfig } from './game';
 
 /** What a level asks for. */
 export type Goal =
-  /** Put this many cats to sleep (only cats of size `size`, if given). */
+  /** Clear this many pieces (only pieces of size `size`, if given). */
   | { kind: 'sleep'; count: number; size?: number }
   /** Reach this score. */
   | { kind: 'score'; target: number }
   /** Make a chain reaction at least this long. */
   | { kind: 'chain'; length: number }
-  /** Put every cat on the board to sleep. */
+  /** Clear every piece on the board. */
   | { kind: 'clear' };
 
 export interface LevelDef {
@@ -64,18 +64,28 @@ export function goalProgress(goal: Goal, game: Game): { have: number; need: numb
   }
 }
 
-export const SIZE_NAMES = ['', 'kittens', 'gingers', 'blues', 'siamese', 'calicos', 'chonks'];
+/** The world's words for goals. Neutral defaults keep the core free of any theme. */
+export interface GoalWords {
+  pieces: string;
+  sizeNames: readonly string[];
+  clearVerb: string;
+}
+export const NEUTRAL_WORDS: GoalWords = {
+  pieces: 'pieces',
+  sizeNames: ['', '1s', '2s', '3s', '4s', '5s', '6s'],
+  clearVerb: 'Clear',
+};
 
-export function goalText(goal: Goal): string {
+export function goalText(goal: Goal, w: GoalWords = NEUTRAL_WORDS): string {
   switch (goal.kind) {
     case 'sleep':
-      return goal.size ? `Tuck in ${goal.count} ${SIZE_NAMES[goal.size]}` : `Tuck in ${goal.count} cats`;
+      return `${w.clearVerb} ${goal.count} ${goal.size ? w.sizeNames[goal.size] : w.pieces}`;
     case 'score':
       return `Score ${goal.target.toLocaleString('en-US')}`;
     case 'chain':
       return `Make a ×${goal.length} chain`;
     case 'clear':
-      return 'Tuck in every cat';
+      return `${w.clearVerb} all the ${w.pieces}`;
   }
 }
 

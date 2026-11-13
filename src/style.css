@@ -489,3 +489,38 @@ body.playing .sky {
   height: 58px;
   margin-left: -29px;
 }
+
+/* ---------- swap and night light ---------- */
+.tools {
+  display: flex;
+  gap: 8px;
+}
+.btn.tool {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 12px;
+  font-size: 0.95rem;
+}
+.btn.tool b {
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 99px;
+  background: var(--line);
+  font-size: 0.8rem;
+}
+#night[aria-pressed='true'] {
+  background: #ffd27a;
+  color: #2a1a08;
+  border-color: transparent;
+  box-shadow: 0 0 18px rgba(255, 210, 122, 0.55);
+}
+#night[aria-pressed='true'] b {
+  background: rgba(0, 0, 0, 0.15);
+}
+.btn.tool:disabled {
+  opacity: 0.45;
+  cursor: default;
+}

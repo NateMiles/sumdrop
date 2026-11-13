@@ -1,14 +1,26 @@
 import type { LevelDef } from './level';
 
 /**
- * Hand-made levels. Boards are bottom-aligned ('.' empty, digits are cat sizes)
+ * Hand-made levels. Boards are bottom-aligned ('.' empty, digits are piece sizes)
  * and must be stable: nothing may pop before the first drop (tests check this).
  * Run `npm run levels` to see how often bots win each level when tuning.
  */
-export const WORLDS = [
-  { id: 'tutorial', name: 'First Nap', blurb: 'Learn how cats fall asleep' },
-  { id: 'alley', name: 'Cat Nap Alley', blurb: 'Dusk on the rooftops' },
-] as const;
+/**
+ * Worlds. Each has its own theme (art and words); the rules are shared. The
+ * tutorial uses the cat theme because it teaches with the first world's pieces.
+ */
+export interface World {
+  id: string;
+  name: string;
+  blurb: string;
+  theme: string;
+}
+export const WORLDS: World[] = [
+  { id: 'tutorial', name: 'First Nap', blurb: 'Learn the basics', theme: 'cats' },
+  { id: 'alley', name: 'Cat Nap Alley', blurb: 'Dusk on the rooftops', theme: 'cats' },
+];
+
+export const worldOf = (def: LevelDef): World => WORLDS.find((w) => w.id === def.world) ?? WORLDS[0];
 
 export const LEVELS: LevelDef[] = [
   /* ---------- tutorial: tiny boards, fixed cats, no rising ---------- */
@@ -16,7 +28,7 @@ export const LEVELS: LevelDef[] = [
     id: 't1',
     world: 'tutorial',
     name: 'Kittens',
-    coach: 'A kitten has 1 heart. Drop a kitten right next to another one and both fall asleep.',
+    coach: 'A cat falls asleep when all its hearts are filled. A kitten has 1. Drop a kitten right next to another one.',
     goal: { kind: 'clear' },
     rows: 4,
     cols: 4,
@@ -29,7 +41,7 @@ export const LEVELS: LevelDef[] = [
     id: 't2',
     world: 'tutorial',
     name: 'Bigger cats',
-    coach: 'A ginger has 2 hearts, so it needs 2 warmth. Drop it between two kittens.',
+    coach: 'Each touching cat fills as many hearts as it has. A ginger has 2: drop it between two kittens.',
     goal: { kind: 'clear' },
     rows: 4,
     cols: 4,
@@ -57,53 +69,55 @@ export const LEVELS: LevelDef[] = [
     id: 'a1',
     world: 'alley',
     name: 'First night',
+    coach: 'Hollow hearts show what a cat still needs. No good spot? Tap Swap to use the next cat first.',
     goal: { kind: 'sleep', count: 10 },
     rows: 7,
-    board: ['..4...', '332322', '123321'],
+    board: ['.3.2.3', '213131'],
     maxValue: 3,
     drops: 22,
-    stars: [1450, 1600],
+    stars: [1400, 1550],
   },
   {
     id: 'a2',
     world: 'alley',
     name: 'Blue hour',
+    coach: 'Night light shows every cat your next drop puts to sleep, chains included. You get 3 per level.',
     goal: { kind: 'sleep', count: 14 },
     rows: 7,
-    board: ['33.321', '212222'],
+    board: ['.3....', '.1.3.3', '314141'],
     maxValue: 4,
     drops: 22,
-    stars: [1350, 1450],
+    stars: [1350, 1400],
   },
   {
     id: 'a3',
     world: 'alley',
     name: 'Ginger roof',
     goal: { kind: 'sleep', count: 5, size: 2 },
-    board: ['3.1..2', '442321', '213322'],
+    board: ['.4....', '.14.4.', '141423'],
     maxValue: 4,
     drops: 22,
-    stars: [1300, 1500],
+    stars: [1250, 1350],
   },
   {
     id: 'a4',
     world: 'alley',
     name: 'Domino',
     goal: { kind: 'chain', length: 2 },
-    board: ['1.....', '332422', '123421', '232322'],
+    board: ['..3..3', '3.14.2', '141141'],
     maxValue: 4,
-    drops: 18,
-    stars: [1150, 1250],
+    drops: 12,
+    stars: [1200, 1250],
   },
   {
     id: 'a5',
     world: 'alley',
     name: 'Lantern light',
     goal: { kind: 'score', target: 900 },
-    board: ['442321', '213322', '321232'],
+    board: ['..3..4', '2.14.1', '114113'],
     maxValue: 4,
     drops: 24,
-    stars: [1300, 1500],
+    stars: [1250, 1500],
   },
   {
     id: 'a6',
@@ -111,22 +125,22 @@ export const LEVELS: LevelDef[] = [
     name: 'Rising tide',
     coach: 'New rows rise from below every few drops. Keep the alley from filling up.',
     goal: { kind: 'sleep', count: 22 },
-    board: ['413344', '414342'],
+    board: ['...4..', '.3.1.2', '414241'],
     maxValue: 4,
     rise: { first: 10, min: 8 },
-    drops: 24,
-    stars: [1550, 1700],
+    drops: 22,
+    stars: [1350, 1500],
   },
   {
     id: 'a7',
     world: 'alley',
     name: 'Siamese',
     goal: { kind: 'sleep', count: 4, size: 4 },
-    board: ['442424', '123421', '232322'],
+    board: ['4..5.3', '14.4.2', '413153'],
     maxValue: 5,
     rise: { first: 10, min: 8 },
-    drops: 22,
-    stars: [1350, 1450],
+    drops: 20,
+    stars: [1300, 1400],
   },
   {
     id: 'a8',
@@ -135,7 +149,7 @@ export const LEVELS: LevelDef[] = [
     goal: { kind: 'clear' },
     board: ['..2...', '.13.3.', '213321'],
     maxValue: 3,
-    drops: 16,
+    drops: 14,
     stars: [900, 1050],
   },
   {
@@ -143,45 +157,45 @@ export const LEVELS: LevelDef[] = [
     world: 'alley',
     name: 'Calico corner',
     goal: { kind: 'sleep', count: 4, size: 5 },
-    board: ['552421', '213322', '321342'],
+    board: ['2..4..', '5..3..', '2..5.2', '513151'],
     maxValue: 5,
     rise: { first: 10, min: 7 },
-    drops: 30,
-    stars: [1800, 1950],
+    drops: 26,
+    stars: [1550, 1700],
   },
   {
     id: 'a10',
     world: 'alley',
     name: 'Triple dream',
     goal: { kind: 'chain', length: 3 },
-    board: ['443524', '134521', '232321'],
+    board: ['1.4..4', '4.2.31', '152515'],
     maxValue: 5,
     rise: { first: 10, min: 7 },
-    drops: 34,
-    stars: [2300, 2500],
+    drops: 30,
+    stars: [2450, 2650],
   },
   {
     id: 'a11',
     world: 'alley',
     name: 'Big chonk',
-    coach: 'Chonks are the biggest cats: 6 hearts. Surround them with warmth.',
+    coach: 'Chonks are the biggest cats: 6 hearts. Watch which hearts are still hollow.',
     goal: { kind: 'sleep', count: 3, size: 6 },
-    board: ['562421', '213322', '521342'],
+    board: ['4.....', '3....5', '6.2.42', '131314'],
     maxValue: 6,
     rise: { first: 10, min: 7 },
-    drops: 32,
-    stars: [1950, 2150],
+    drops: 27,
+    stars: [1700, 1900],
   },
   {
     id: 'a12',
     world: 'alley',
     name: 'Moonrise',
     goal: { kind: 'score', target: 1800 },
-    board: ['623365', '515453', '533424'],
+    board: ['.2...2', '.1.2.1', '.4.1.5', '314232'],
     maxValue: 6,
     rise: { first: 9, min: 6 },
-    drops: 40,
-    stars: [2500, 2850],
+    drops: 34,
+    stars: [2350, 2750],
   },
 ];
 
