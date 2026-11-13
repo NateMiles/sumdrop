@@ -10,15 +10,31 @@
     <div class="sky" aria-hidden="true">
       <svg viewBox="0 0 400 200" preserveAspectRatio="xMidYMax slice">
         <g fill="#fff" id="stars"></g>
-        <circle cx="318" cy="58" r="22" fill="#ffeec4" />
-        <circle cx="328" cy="51" r="20" fill="#2a2148" opacity=".25" />
-        <path d="M0 200 L0 160 L40 160 L40 130 L62 114 L84 130 L84 170 L130 170 L130 142 L180 142 L180 122 L200 122 L200 150 L250 150 L250 108 L272 94 L294 108 L294 160 L340 160 L340 134 L400 134 L400 200 Z" fill="#15112a" />
-        <g fill="#ffd27a">
-          <rect x="52" y="134" width="8" height="10" rx="2" /><rect x="66" y="134" width="8" height="10" rx="2" opacity=".5" />
-          <rect x="146" y="152" width="7" height="9" rx="2" /><rect x="262" y="118" width="8" height="11" rx="2" opacity=".8" />
-          <rect x="276" y="118" width="8" height="11" rx="2" /><rect x="356" y="146" width="7" height="9" rx="2" opacity=".6" />
+        <g class="roofs">
+          <circle cx="318" cy="58" r="22" fill="#ffeec4" />
+          <circle cx="328" cy="51" r="20" fill="#2a2148" opacity=".25" />
+          <path d="M0 200 L0 160 L40 160 L40 130 L62 114 L84 130 L84 170 L130 170 L130 142 L180 142 L180 122 L200 122 L200 150 L250 150 L250 108 L272 94 L294 108 L294 160 L340 160 L340 134 L400 134 L400 200 Z" fill="#15112a" />
+          <g fill="#ffd27a">
+            <rect x="52" y="134" width="8" height="10" rx="2" /><rect x="66" y="134" width="8" height="10" rx="2" opacity=".5" />
+            <rect x="146" y="152" width="7" height="9" rx="2" /><rect x="262" y="118" width="8" height="11" rx="2" opacity=".8" />
+            <rect x="276" y="118" width="8" height="11" rx="2" /><rect x="356" y="146" width="7" height="9" rx="2" opacity=".6" />
+          </g>
+          <rect x="186" y="106" width="8" height="18" fill="#15112a" />
         </g>
-        <rect x="186" y="106" width="8" height="18" fill="#15112a" />
+        <g class="crystals">
+          <path d="M0 0 H400 V26 L380 40 L366 22 L350 52 L330 30 L312 44 L290 18 L270 46 L246 24 L226 38 L204 16 L186 42 L160 22 L140 50 L118 28 L98 40 L74 20 L56 46 L36 24 L18 38 L0 22 Z" fill="#0b1426" />
+          <path d="M0 200 V170 L14 150 L26 172 L40 138 L58 176 L80 160 L96 120 L112 168 L130 156 L150 178 L176 166 L196 140 L214 174 L240 162 L262 128 L280 170 L300 158 L322 112 L338 166 L360 150 L378 172 L400 146 V200 Z" fill="#0b1426" />
+          <g opacity=".9">
+            <path d="M96 120 L104 146 L90 146 Z" fill="#3fd3b4" />
+            <path d="M322 112 L332 140 L314 140 Z" fill="#9b7bf0" />
+            <path d="M262 128 L270 150 L255 150 Z" fill="#4aa8f0" />
+            <path d="M40 138 L47 158 L34 158 Z" fill="#f0679e" />
+            <path d="M196 140 L203 160 L190 160 Z" fill="#f5b33d" />
+          </g>
+          <g fill="#c3e4ff" opacity=".8">
+            <circle cx="100" cy="128" r="1.6" /><circle cx="324" cy="122" r="1.6" /><circle cx="265" cy="136" r="1.4" />
+          </g>
+        </g>
       </svg>
     </div>
     <main class="screen map" id="map">
@@ -83,7 +99,7 @@
         </button>
         <button class="btn tool" id="night" type="button" aria-pressed="false">
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" fill="currentColor"/></svg>
-          Night light <b id="night-count">3</b>
+          <span id="night-label">Night light</span> <b id="night-count">3</b>
         </button>
       </div>
       <p class="rule" id="rule"></p>

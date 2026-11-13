@@ -96,7 +96,7 @@ describe('goals and results', () => {
   });
 
   it('levels without rising never add rows', () => {
-    const g = new Game(1, levelConfig(levelById('a1')!));
+    const g = new Game(1, levelConfig(levelById('g1')!));
     const before = g.grid.flat().filter(Boolean).length;
     for (let i = 0; i < 15 && !g.over; i++) g.drop(i % 6);
     expect(g.rising).toBe(false);
@@ -104,8 +104,8 @@ describe('goals and results', () => {
   });
 
   it('the same seed replays a level identically', () => {
-    const a = play('a6', [0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4], 42).g;
-    const b = play('a6', [0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4], 42).g;
+    const a = play('g6', [0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4], 42).g;
+    const b = play('g6', [0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4], 42).g;
     expect(a.grid.map((r) => r.map((t) => t?.v ?? 0))).toEqual(b.grid.map((r) => r.map((t) => t?.v ?? 0)));
   });
 });

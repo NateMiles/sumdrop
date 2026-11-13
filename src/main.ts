@@ -56,6 +56,8 @@ const board = new BoardView(canvas, game, sfx, {
 /* ---------- screens ---------- */
 
 function showScreen(which: 'map' | 'play'): void {
+  // The map uses the first world's backdrop; play uses the current world's.
+  if (which === 'map') document.body.dataset.art = DEFAULT_THEME.id;
   $('#map').hidden = which !== 'map';
   $('#play').hidden = which !== 'play';
   document.body.classList.toggle('playing', which === 'play');
@@ -190,6 +192,8 @@ function enterPlay(): void {
   $('#rule').hidden = !!coach;
   const theme = currentTheme();
   $('#rule').innerHTML = theme.words.rule;
+  $('#night-label').textContent = theme.words.boost;
+  document.body.dataset.art = theme.id;
   board.art = theme.art;
   board.words = theme.words;
   showScreen('play');

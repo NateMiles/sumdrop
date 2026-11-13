@@ -7,7 +7,7 @@ import type { LevelDef } from './level';
  */
 /**
  * Worlds. Each has its own theme (art and words); the rules are shared. The
- * tutorial uses the cat theme because it teaches with the first world's pieces.
+ * tutorial uses the first world's theme (gems) because it teaches with its pieces.
  */
 export interface World {
   id: string;
@@ -16,19 +16,20 @@ export interface World {
   theme: string;
 }
 export const WORLDS: World[] = [
-  { id: 'tutorial', name: 'First Nap', blurb: 'Learn the basics', theme: 'cats' },
+  { id: 'tutorial', name: 'First Light', blurb: 'Learn the basics', theme: 'gems' },
+  { id: 'grotto', name: 'Gem Grotto', blurb: 'A glittering cave', theme: 'gems' },
   { id: 'alley', name: 'Cat Nap Alley', blurb: 'Dusk on the rooftops', theme: 'cats' },
 ];
 
 export const worldOf = (def: LevelDef): World => WORLDS.find((w) => w.id === def.world) ?? WORLDS[0];
 
 export const LEVELS: LevelDef[] = [
-  /* ---------- tutorial: tiny boards, fixed cats, no rising ---------- */
+  /* ---------- tutorial: tiny boards, fixed pieces, no rising ---------- */
   {
     id: 't1',
     world: 'tutorial',
-    name: 'Kittens',
-    coach: 'A cat falls asleep when all its hearts are filled. A kitten has 1. Drop a kitten right next to another one.',
+    name: 'Round gems',
+    coach: 'A gem lights up when all its sparks are lit. A round gem needs 1. Drop one right next to the other.',
     goal: { kind: 'clear' },
     rows: 4,
     cols: 4,
@@ -40,8 +41,8 @@ export const LEVELS: LevelDef[] = [
   {
     id: 't2',
     world: 'tutorial',
-    name: 'Bigger cats',
-    coach: 'Each touching cat fills as many hearts as it has. A ginger has 2: drop it between two kittens.',
+    name: 'Two sides',
+    coach: 'A gem needs one spark per side. A lens has 2 sides, and each touching gem gives its own sparks. Drop it between two round gems.',
     goal: { kind: 'clear' },
     rows: 4,
     cols: 4,
@@ -53,8 +54,8 @@ export const LEVELS: LevelDef[] = [
   {
     id: 't3',
     world: 'tutorial',
-    name: 'Chain naps',
-    coach: 'When cats fall asleep, the cats above slide down and can fall asleep too. Tuck in the blues.',
+    name: 'Chains',
+    coach: 'When gems shatter, the gems above slide down and can light up too. Light up the triangles.',
     goal: { kind: 'chain', length: 2 },
     rows: 4,
     cols: 4,
@@ -64,12 +65,12 @@ export const LEVELS: LevelDef[] = [
     stars: [0, 0],
   },
 
-  /* ---------- Cat Nap Alley ---------- */
+  /* ---------- Gem Grotto ---------- */
   {
-    id: 'a1',
-    world: 'alley',
-    name: 'First night',
-    coach: 'Hollow hearts show what a cat still needs. No good spot? Tap Swap to use the next cat first.',
+    id: 'g1',
+    world: 'grotto',
+    name: 'First glimmer',
+    coach: 'Dark sparks show what a gem still needs. No good spot? Tap Swap to use the next gem first.',
     goal: { kind: 'sleep', count: 10 },
     rows: 7,
     board: ['.3.2.3', '213131'],
@@ -78,10 +79,10 @@ export const LEVELS: LevelDef[] = [
     stars: [1400, 1550],
   },
   {
-    id: 'a2',
-    world: 'alley',
-    name: 'Blue hour',
-    coach: 'Glowing cats fall asleep right away. Night light also shows the whole chain after that. You get 3 per level.',
+    id: 'g2',
+    world: 'grotto',
+    name: 'Blue vein',
+    coach: 'Glowing gems light up right away. Lantern also shows the whole chain after that. You get 3 per level.',
     goal: { kind: 'sleep', count: 14 },
     rows: 7,
     board: ['.3....', '.1.3.3', '314141'],
@@ -90,9 +91,9 @@ export const LEVELS: LevelDef[] = [
     stars: [1350, 1400],
   },
   {
-    id: 'a3',
-    world: 'alley',
-    name: 'Ginger roof',
+    id: 'g3',
+    world: 'grotto',
+    name: 'Lens cave',
     goal: { kind: 'sleep', count: 5, size: 2 },
     board: ['.4....', '.14.4.', '141423'],
     maxValue: 4,
@@ -100,8 +101,8 @@ export const LEVELS: LevelDef[] = [
     stars: [1250, 1350],
   },
   {
-    id: 'a4',
-    world: 'alley',
+    id: 'g4',
+    world: 'grotto',
     name: 'Domino',
     goal: { kind: 'chain', length: 2 },
     board: ['..3..3', '3.14.2', '141141'],
@@ -110,8 +111,8 @@ export const LEVELS: LevelDef[] = [
     stars: [1200, 1250],
   },
   {
-    id: 'a5',
-    world: 'alley',
+    id: 'g5',
+    world: 'grotto',
     name: 'Lantern light',
     goal: { kind: 'score', target: 900 },
     board: ['..3..4', '2.14.1', '114113'],
@@ -120,10 +121,10 @@ export const LEVELS: LevelDef[] = [
     stars: [1250, 1500],
   },
   {
-    id: 'a6',
-    world: 'alley',
-    name: 'Rising tide',
-    coach: 'New rows rise from below every few drops. Keep the alley from filling up.',
+    id: 'g6',
+    world: 'grotto',
+    name: 'Rising floor',
+    coach: 'New rows rise from below every few drops. Keep the cave from filling up.',
     goal: { kind: 'sleep', count: 22 },
     board: ['...4..', '.3.1.2', '414241'],
     maxValue: 4,
@@ -132,9 +133,9 @@ export const LEVELS: LevelDef[] = [
     stars: [1350, 1500],
   },
   {
-    id: 'a7',
-    world: 'alley',
-    name: 'Siamese',
+    id: 'g7',
+    world: 'grotto',
+    name: 'Four corners',
     goal: { kind: 'sleep', count: 4, size: 4 },
     board: ['4..5.3', '14.4.2', '413153'],
     maxValue: 5,
@@ -143,9 +144,9 @@ export const LEVELS: LevelDef[] = [
     stars: [1300, 1400],
   },
   {
-    id: 'a8',
-    world: 'alley',
-    name: 'Quiet street',
+    id: 'g8',
+    world: 'grotto',
+    name: 'Clean sweep',
     goal: { kind: 'clear' },
     board: ['..2...', '.13.3.', '213321'],
     maxValue: 3,
@@ -153,9 +154,9 @@ export const LEVELS: LevelDef[] = [
     stars: [900, 1050],
   },
   {
-    id: 'a9',
-    world: 'alley',
-    name: 'Calico corner',
+    id: 'g9',
+    world: 'grotto',
+    name: 'Five points',
     goal: { kind: 'sleep', count: 4, size: 5 },
     board: ['2..4..', '5..3..', '2..5.2', '513151'],
     maxValue: 5,
@@ -164,9 +165,9 @@ export const LEVELS: LevelDef[] = [
     stars: [1550, 1700],
   },
   {
-    id: 'a10',
-    world: 'alley',
-    name: 'Triple dream',
+    id: 'g10',
+    world: 'grotto',
+    name: 'Triple shine',
     goal: { kind: 'chain', length: 3 },
     board: ['1.4..4', '4.2.31', '152515'],
     maxValue: 5,
@@ -175,10 +176,10 @@ export const LEVELS: LevelDef[] = [
     stars: [2450, 2650],
   },
   {
-    id: 'a11',
-    world: 'alley',
-    name: 'Big chonk',
-    coach: 'Chonks are the biggest cats: 6 hearts. Watch which hearts are still hollow.',
+    id: 'g11',
+    world: 'grotto',
+    name: 'Hexagon hall',
+    coach: 'Hexagons are the biggest gems: 6 sparks. Watch which sparks are still dark.',
     goal: { kind: 'sleep', count: 3, size: 6 },
     board: ['4.....', '3....5', '6.2.42', '131314'],
     maxValue: 6,
@@ -187,15 +188,107 @@ export const LEVELS: LevelDef[] = [
     stars: [1700, 1900],
   },
   {
-    id: 'a12',
-    world: 'alley',
-    name: 'Moonrise',
+    id: 'g12',
+    world: 'grotto',
+    name: 'Heart of the cave',
     goal: { kind: 'score', target: 1800 },
     board: ['.2...2', '.1.2.1', '.4.1.5', '314232'],
     maxValue: 6,
     rise: { first: 9, min: 6 },
     drops: 34,
     stars: [2350, 2750],
+  },
+
+  /* ---------- Cat Nap Alley (world 2: bigger cats, faster rising) ---------- */
+  {
+    id: 'c1',
+    world: 'alley',
+    name: 'Rooftop dusk',
+    coach: 'Cats work like gems: hollow hearts show what each cat still needs. Bigger cats need more.',
+    goal: { kind: 'sleep', count: 18 },
+    board: ['.2...3', '31.3.2', '115131'],
+    maxValue: 5,
+    rise: { first: 9, min: 7 },
+    drops: 20,
+    stars: [1250, 1400],
+  },
+  {
+    id: 'c2',
+    world: 'alley',
+    name: 'Ginger roof',
+    goal: { kind: 'sleep', count: 6, size: 2 },
+    board: ['.31...', '415..5', '141511'],
+    maxValue: 5,
+    rise: { first: 9, min: 7 },
+    drops: 24,
+    stars: [1600, 1850],
+  },
+  {
+    id: 'c3',
+    world: 'alley',
+    name: 'Siamese stairs',
+    goal: { kind: 'sleep', count: 5, size: 4 },
+    board: ['.4..4.', '.3.525', '413162'],
+    maxValue: 6,
+    rise: { first: 9, min: 7 },
+    drops: 26,
+    stars: [1650, 1850],
+  },
+  {
+    id: 'c4',
+    world: 'alley',
+    name: 'Chimney chain',
+    goal: { kind: 'chain', length: 3 },
+    board: ['3.4...', '2.1...', '2.3.3.', '251412'],
+    maxValue: 6,
+    rise: { first: 9, min: 6 },
+    drops: 28,
+    stars: [1900, 2100],
+  },
+  {
+    id: 'c5',
+    world: 'alley',
+    name: 'Calico corner',
+    goal: { kind: 'sleep', count: 5, size: 5 },
+    board: ['3.2.4.', '141515', '114163'],
+    maxValue: 6,
+    rise: { first: 8, min: 6 },
+    drops: 28,
+    stars: [1850, 2250],
+  },
+  {
+    id: 'c6',
+    world: 'alley',
+    name: 'Big chonk',
+    coach: 'Chonks are the biggest cats: 6 hearts. Surround them with warmth.',
+    goal: { kind: 'sleep', count: 4, size: 6 },
+    board: ['.6.4..', '.3.3.3', '13.5.2', '636151'],
+    maxValue: 6,
+    rise: { first: 8, min: 6 },
+    drops: 30,
+    stars: [2100, 2300],
+  },
+  {
+    id: 'c7',
+    world: 'alley',
+    name: 'Lantern street',
+    goal: { kind: 'score', target: 2000 },
+    board: ['....5.', '.1..24', '.61161', '531413'],
+    maxValue: 6,
+    rise: { first: 8, min: 6 },
+    drops: 36,
+    stars: [2600, 2950],
+  },
+  {
+    id: 'c8',
+    world: 'alley',
+    name: 'Moonrise',
+    goal: { kind: 'score', target: 2500 },
+    board: ['....5.', '..3.31', '.41611', '315225'],
+    maxValue: 6,
+    rise: { first: 8, min: 5 },
+    drops: 34,
+    stars: [2850, 3250],
   },
 ];
 
