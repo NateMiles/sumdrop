@@ -3,6 +3,7 @@ import type { DropOutcome, Game } from '../core/game';
 import { palette, tileColor } from './theme';
 import type { Sfx } from './audio';
 import { haptics } from './platform';
+import { warningWobble } from './warning';
 
 const PIPS: Record<number, ReadonlyArray<[number, number]>> = {
   1: [[0, 0]],
@@ -44,6 +45,8 @@ export class BoardView {
   private floatText: { s: string; r: number; c: number; life: number } | null = null;
   private banner: { chain: number; life: number } | null = null;
   private shake = 0;
+  /** Time the rise warning started, or -1 when it isn't showing. */
+  private warnSince = -1;
   private w = 0;
   private h = 0;
   private ctx: CanvasRenderingContext2D;
@@ -209,7 +212,21 @@ export class BoardView {
     ctx.lineTo(g.x0 + g.bw, g.y0 + g.cell);
     ctx.stroke();
     ctx.setLineDash([]);
+    // Rise warning: one short shake when the warning starts, then a calm pulsing glow
+    // along the bottom until the row rises (a constant jitter read as a bug).
     const danger = game.untilRise === 1 && !game.over;
+    if (danger && this.warnSince < 0) this.warnSince = t;
+    if (!danger) this.warnSince = -1;
+    const warnAge = danger ? t - this.warnSince : Infinity;
+    if (danger) {
+      const glow = 0.35 + 0.25 * Math.sin(t / 380);
+      const gy = g.y0 + g.bh;
+      const grad = ctx.createLinearGradient(0, gy - g.cell * 1.2, 0, gy + 6);
+      grad.addColorStop(0, 'rgba(255,138,107,0)');
+      grad.addColorStop(1, `rgba(255,138,107,${this.reduced ? 0.4 : glow})`);
+      ctx.fillStyle = grad;
+      ctx.fillRect(g.x0 - 6, gy - g.cell * 1.2, g.bw + 12, g.cell * 1.2 + 6);
+    }
 
     // tiles
     ctx.save();
@@ -240,7 +257,7 @@ export class BoardView {
           flash: vs.flash,
           glow: wv === 0 ? 0.5 + 0.5 * pulse : 0,
           badge: wv > 0 ? `×${wv + 1}` : null,
-          wobble: danger && r === ROWS - 1 && !this.reduced ? Math.sin(t / 40 + c) * 1.2 : 0,
+          wobble: r === ROWS - 1 && !this.reduced ? warningWobble(warnAge, t, c) : 0,
         });
       }
     }
@@ -372,6 +389,7 @@ export class BoardView {
 }
 
 /* ---------- drawing helpers ---------- */
+
 
 function rrect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
   ctx.beginPath();
