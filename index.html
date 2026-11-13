@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#101c26" />
+    <title>Sum Drop</title>
+  </head>
+  <body>
+    <main class="app">
+      <header class="hud">
+        <div class="stat"><b id="score">0</b><span>Score</span></div>
+        <div class="stat"><b id="best">0</b><span>Best</span></div>
+        <div class="stat"><span>Rise in</span><div class="pips" id="pips"></div></div>
+        <div class="spacer"></div>
+        <button class="btn" id="sound" type="button" aria-pressed="true">Sound</button>
+        <button class="btn" id="restart" type="button">Restart</button>
+      </header>
+      <section class="stage" id="stage">
+        <canvas id="board" aria-label="Sum Drop board"></canvas>
+        <div class="overlay" id="over" hidden>
+          <div class="card">
+            <h2>Board full</h2>
+            <p id="over-text">Score 0</p>
+            <button class="btn hot" id="again" type="button">Play again</button>
+          </div>
+        </div>
+      </section>
+      <p class="rule">
+        <b>Fill a tile to the brim and it pops.</b> Dots touching a tile pour into it. Exactly full pops it, and
+        same-color tiles touching it splash away too. Hold a column to preview the cascade.
+      </p>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
