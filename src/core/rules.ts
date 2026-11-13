@@ -201,6 +201,8 @@ export interface DropPreview {
   points: number;
   /** Fill ratio the dropped tile would have where it lands. */
   landingFill: number;
+  /** Tiles that slide down after each wave, by wave index. */
+  fallsByWave: Fall[][];
 }
 
 export const PREVIEW_ID = -1;
@@ -222,5 +224,6 @@ export function previewDrop(g: Grid, col: number, v: number): DropPreview | null
     waves: waves.length,
     points: waves.reduce((s, w) => s + w.points, 0),
     landingFill,
+    fallsByWave: waves.map((w) => w.falls),
   };
 }

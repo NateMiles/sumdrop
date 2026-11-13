@@ -42,6 +42,10 @@ export class BoardView {
   private floatText: { s: string; r: number; c: number; life: number } | null = null;
   private banner: { chain: number; life: number } | null = null;
   private shake = 0;
+  /** Expanding rings where pieces clear. */
+  private rings: { x: number; y: number; col: string; life: number }[] = [];
+  /** Board tint pulse during chains, 1 → 0. */
+  private chainTint = 0;
   /** Time the rise warning started, or -1 when it isn't showing. */
   private warnSince = -1;
   /** The current world's piece art and words. Set per level or mode. */
@@ -71,6 +75,8 @@ export class BoardView {
     this.parts = [];
     this.floatText = null;
     this.banner = null;
+    this.rings = [];
+    this.chainTint = 0;
     this.warnSince = -1;
     this.hover = Math.min(this.hover, this.game.cols - 1);
   }
@@ -168,20 +174,23 @@ export class BoardView {
         const v = this.vis.get(p.tile.id);
         if (v) v.flash = 1;
       }
-      await wait(wave.chain === 1 ? 90 : 160);
+      // Chain steps get a beat of anticipation: the banner lands first, then they clear.
+      if (wave.chain > 1) {
+        this.banner = { chain: wave.chain, life: 1 };
+        this.chainTint = 1;
+      }
+      await wait(wave.chain === 1 ? 140 : 320);
       wave.popped.forEach((p, i) => {
         this.view[p.r][p.c] = null;
         this.fx.push({ v: p.tile.v, r: p.r, c: p.c, life: 1 });
+        this.rings.push({ x: p.c + 0.5, y: p.r + 0.5, col: this.art.color(p.tile.v), life: 1 });
         this.burst(p.r, p.c, p.tile.v);
         this.sfx.pop(wave.chain, i);
       });
       this.cb.onScore(wave.points);
       const first = wave.popped[0];
       this.floatText = { s: `+${wave.points}`, r: first.r, c: first.c, life: 1 };
-      if (wave.chain > 1) {
-        this.banner = { chain: wave.chain, life: 1 };
-        this.bump(Math.min(1, 0.25 * wave.chain));
-      }
+      if (wave.chain > 1) this.bump(Math.min(1, 0.25 * wave.chain));
       haptics.pop(wave.chain);
       await wait(260);
       applyGravity(this.view);
@@ -204,6 +213,7 @@ export class BoardView {
     const g = this.geom();
     const game = this.game;
     ctx.clearRect(0, 0, this.w, this.h);
+    if (g.cell <= 4) return; // not laid out yet
     let sx = 0;
     let sy = 0;
     if (this.shake > 0 && !this.reduced) {
@@ -216,9 +226,13 @@ export class BoardView {
 
     const canPreview = !this.busy && !game.over && (this.mouse || this.pressing);
     const pv = canPreview ? previewDrop(game.grid, this.hover, game.current) : null;
-    // Without the night light, the preview is local: where the cat lands and the warmth it
-    // gives its neighbors. With it, every cat the drop would put to sleep glows too.
-    const waveOf = (id: number) => (this.nightLight ? (pv?.waveOf.get(id) ?? -1) : -1);
+    // The free preview shows the drop's direct effect: the warmth each touching piece
+    // would gain, which pieces clear right away, and which slide down after. The night
+    // light adds the rest of the chain, step by step.
+    const waveOf = (id: number) => {
+      const w = pv?.waveOf.get(id) ?? -1;
+      return w === 0 || (w > 0 && this.nightLight) ? w : -1;
+    };
     let pvGrid: Grid | null = null;
     if (pv) {
       pvGrid = cloneGrid(game.grid);
@@ -261,6 +275,14 @@ export class BoardView {
       ctx.fillRect(g.x0 - 6, gy - g.cell * 1.2, g.bw + 12, g.cell * 1.2 + 6);
     }
 
+    // Chain tint: the board warms up for a moment on each chain step.
+    this.chainTint = Math.max(0, this.chainTint - dt / 700);
+    if (this.chainTint > 0 && !this.reduced) {
+      rrect(ctx, g.x0 - 6, g.y0 - 6, g.bw + 12, g.bh + 12, 16);
+      ctx.fillStyle = `rgba(255,210,122,${0.14 * this.chainTint})`;
+      ctx.fill();
+    }
+
     // tiles
     ctx.save();
     rrect(ctx, g.x0 - 6, g.y0 - 6, g.bw + 12, g.bh + 12, 16);
@@ -281,23 +303,43 @@ export class BoardView {
         const sum = neighborSum(this.view, r, c);
         const over = sum > tl.v;
         vs.fill += ((over ? 1 : sum / tl.v) - vs.fill) * Math.min(1, dt / 90);
-        vs.flash = Math.max(0, vs.flash - dt / 200);
+        vs.flash = Math.max(0, vs.flash - dt / 420);
         const wv = waveOf(tl.id);
-        // Hearts show warmth; next to the previewed drop they show the warmth it would get.
-        const warmth = pvGrid && isNeighborOfPreview(r, c) ? neighborSum(pvGrid, r, c) : sum;
+        // Next to the previewed drop: show the warmth it would get, the new part glowing,
+        // and a ring saying what happens (gold: clears, mint: warmer, red: too much).
+        const touched = !!pvGrid && isNeighborOfPreview(r, c);
+        const warmth = touched ? neighborSum(pvGrid!, r, c) : sum;
+        let ring: string | null = null;
+        if (touched && wv !== 0) ring = warmth > tl.v ? RING_OVER : RING_WARM;
+        // Falling pieces leave a short trail so you can follow the cascade.
+        if (vs.vy > 0.02 && !this.reduced) {
+          for (const [k, a] of [[0.9, 0.22], [1.8, 0.1]] as const) {
+            this.art.draw(ctx, g.x0 + c * g.cell, g.y0 + (vs.y - vs.vy * k) * g.cell, g.cell, tl.v, { ratio: vs.fill, base: false, alpha: a });
+          }
+        }
         drawPieceTile(ctx, this.art, g.x0 + c * g.cell, g.y0 + vs.y * g.cell, g.cell, tl.v, {
           warmth,
+          warmthBefore: touched ? sum : undefined,
+          ring,
+          ringPulse: pulse,
+          gain: touched ? `+${game.current}` : null,
           ratio: vs.fill,
           mood: moodFor(sum / tl.v),
           stripes: neighborValues(this.view, r, c),
           flash: vs.flash,
-          glow: wv === 0 ? 0.5 + 0.5 * pulse : 0,
+          // During playback, pieces about to clear light up gold (flash) before they go.
+          glow: Math.max(vs.flash, wv === 0 ? 0.6 + 0.4 * pulse : wv > 0 ? 0.35 + 0.25 * pulse : 0),
           badge: wv > 0 ? `×${wv + 1}` : null,
           wobble: r === rows - 1 && !this.reduced ? warningWobble(warnAge, t, c) : 0,
         });
       }
     }
     if (pv) {
+      // Slide arrows: where pieces fall after each visible step clears.
+      pv.fallsByWave.forEach((falls, i) => {
+        if (i > 0 && !this.nightLight) return;
+        for (const f of falls) drawFallArrow(ctx, g.x0 + (f.c + 0.5) * g.cell, g.y0 + (f.fromRow + 0.5) * g.cell, g.y0 + (f.toRow + 0.5) * g.cell, g.cell, i, t);
+      });
       const lf = pv.landingFill;
       const gw = waveOf(PREVIEW_ID);
       drawPieceTile(ctx, this.art, g.x0 + pv.col * g.cell, g.y0 + pv.row * g.cell, g.cell, game.current, {
@@ -306,9 +348,18 @@ export class BoardView {
         mood: moodFor(lf),
         stripes: neighborValues(game.grid, pv.row, pv.col),
         alpha: 0.7,
-        glow: gw === 0 ? pulse : 0,
+        glow: gw === 0 ? 0.6 + 0.4 * pulse : 0,
         badge: gw > 0 ? `×${gw + 1}` : null,
       });
+      // Outline the landing spot so it is clear where the piece goes.
+      ctx.save();
+      rrect(ctx, g.x0 + pv.col * g.cell + 3, g.y0 + pv.row * g.cell + 3, g.cell - 6, g.cell - 6, g.cell * 0.2);
+      ctx.setLineDash([5, 5]);
+      ctx.lineDashOffset = -t / 40;
+      ctx.strokeStyle = 'rgba(251,243,234,.75)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.restore();
     }
     ctx.restore();
 
@@ -318,6 +369,21 @@ export class BoardView {
       const x = g.x0 + f.c * g.cell;
       const y = g.y0 + f.r * g.cell;
       this.art.drawClearing(ctx, x, y, g.cell, f.v, 1 - f.life, this.reduced);
+    }
+    // Clear rings: expand and fade, in the piece's color.
+    this.rings = this.rings.filter((rg) => (rg.life -= dt / 520) > 0);
+    for (const rg of this.rings) {
+      const k = 1 - rg.life;
+      ctx.save();
+      ctx.globalAlpha = rg.life;
+      ctx.strokeStyle = rg.col;
+      ctx.shadowColor = rg.col;
+      ctx.shadowBlur = 14;
+      ctx.lineWidth = 7 * rg.life + 1.5;
+      ctx.beginPath();
+      ctx.arc(g.x0 + rg.x * g.cell, g.y0 + rg.y * g.cell, g.cell * (0.25 + k * 0.9), 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
     }
     this.parts = this.parts.filter((p) => (p.life -= dt / 700) > 0);
     for (const p of this.parts) {
@@ -352,12 +418,16 @@ export class BoardView {
       ctx.textBaseline = 'middle';
       ctx.textAlign = leftSide ? 'left' : 'right';
       ctx.fillText('NEXT', leftSide ? nx + ns + 6 : nx - 6, hy + g.cell / 2);
-      if (pv && pv.waves && this.nightLight) {
-        const label = pv.waves > 1 ? `Chain ×${pv.waves}  +${pv.points}` : `Pop!  +${pv.points}`;
+      const firstCount = pv ? [...pv.waveOf.values()].filter((w) => w === 0).length : 0;
+      if (pv && firstCount) {
+        const label =
+          this.nightLight && pv.waves > 1
+            ? `Chain ×${pv.waves}  +${pv.points}`
+            : `${firstCount} ${this.words.cleared}${this.nightLight ? `  +${pv.points}` : ''}`;
         ctx.font = `800 ${g.cell * 0.3}px "Baloo 2", system-ui, sans-serif`;
         ctx.textAlign = 'center';
         const lx = Math.min(Math.max(hx + g.cell / 2, g.x0 + g.cell * 1.3), g.x0 + g.bw - g.cell * 1.3);
-        outlinedText(ctx, label, lx, hy - g.cell * 0.05, 5, pv.waves > 1 ? palette.coral : palette.ink);
+        outlinedText(ctx, label, lx, hy - g.cell * 0.05, 5, this.nightLight && pv.waves > 1 ? palette.coral : palette.gold);
       }
     }
     ctx.restore();
@@ -442,9 +512,18 @@ function neighborValues(g: Grid, r: number, c: number): number[] {
   return out;
 }
 
+const RING_WARM = '#8fd5b8';
+const RING_OVER = '#ff5a5f';
+const GLOW = '#ffd27a';
+
 interface PieceTileOpts {
   ratio: number;
   warmth?: number;
+  warmthBefore?: number;
+  /** Colored ring for a piece the preview touches, and its "+N" gain tag. */
+  ring?: string | null;
+  ringPulse?: number;
+  gain?: string | null;
   mood?: Mood;
   stripes?: number[];
   alpha?: number;
@@ -458,15 +537,58 @@ interface PieceTileOpts {
 /** A piece plus the board's overlays: preview glow, cascade badge and clear flash. */
 function drawPieceTile(ctx: CanvasRenderingContext2D, art: PieceArt, x: number, y: number, s: number, v: number, o: PieceTileOpts): void {
   const { glow = 0, badge = null, flash = 0, wobble = 0 } = o;
-  art.draw(ctx, x + wobble, y, s, v, { ratio: o.ratio, mood: o.mood, neighbors: o.stripes, alpha: o.alpha, base: o.cushion, received: o.warmth });
+  if (glow > 0) {
+    // Clears: a warm gold halo behind the piece and a bright outline in front.
+    ctx.save();
+    rrect(ctx, x + 2, y + 2, s - 4, s - 4, s * 0.2);
+    ctx.fillStyle = `rgba(255,210,122,${0.16 + 0.14 * glow})`;
+    ctx.shadowColor = GLOW;
+    ctx.shadowBlur = 26 * glow;
+    ctx.fill();
+    ctx.restore();
+  }
+  art.draw(ctx, x + wobble, y, s, v, { ratio: o.ratio, mood: o.mood, neighbors: o.stripes, alpha: o.alpha, base: o.cushion, received: o.warmth, receivedBefore: o.warmthBefore });
   if (glow > 0) {
     ctx.save();
     rrect(ctx, x + 2, y + 2, s - 4, s - 4, s * 0.2);
-    ctx.shadowColor = '#fff6d6';
-    ctx.shadowBlur = 16 * glow;
-    ctx.strokeStyle = `rgba(255,246,214,${0.55 + 0.45 * glow})`;
+    ctx.shadowColor = GLOW;
+    ctx.shadowBlur = 18 * glow;
+    ctx.strokeStyle = `rgba(255,226,160,${0.6 + 0.4 * glow})`;
+    ctx.lineWidth = 3.5;
+    ctx.stroke();
+    ctx.restore();
+  }
+  if (o.ring) {
+    const p = o.ringPulse ?? 1;
+    ctx.save();
+    rrect(ctx, x + 3, y + 3, s - 6, s - 6, s * 0.2);
+    ctx.shadowColor = o.ring;
+    ctx.shadowBlur = 10 + 8 * p;
+    ctx.strokeStyle = o.ring;
+    ctx.globalAlpha = 0.65 + 0.35 * p;
     ctx.lineWidth = 3;
     ctx.stroke();
+    ctx.restore();
+  }
+  if (o.gain && (o.ring || glow > 0)) {
+    // "+N" tag: how much warmth this piece would get from the drop.
+    ctx.save();
+    const col = o.ring ?? GLOW;
+    ctx.font = `800 ${s * 0.22}px "Baloo 2", system-ui, sans-serif`;
+    const tw = ctx.measureText(o.gain).width + s * 0.16;
+    const th = s * 0.26;
+    const tx = x + s * 0.04;
+    const ty = y + s * 0.04;
+    rrect(ctx, tx, ty, tw, th, th / 2);
+    ctx.fillStyle = col;
+    ctx.shadowColor = col;
+    ctx.shadowBlur = 8;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#1d1838';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(o.gain, tx + tw / 2, ty + th / 2 + s * 0.01);
     ctx.restore();
   }
   if (flash > 0) {
@@ -493,6 +615,31 @@ function drawPieceTile(ctx: CanvasRenderingContext2D, art: PieceArt, x: number, 
   }
 }
 
+/** Dashed arrow showing a piece sliding down after a step clears. Step 0 is white, later steps coral. */
+function drawFallArrow(ctx: CanvasRenderingContext2D, x: number, y1: number, y2: number, s: number, step: number, t: number): void {
+  const col = step === 0 ? 'rgba(251,243,234,.9)' : 'rgba(239,111,108,.95)';
+  const ox = s * 0.34;
+  ctx.save();
+  ctx.strokeStyle = col;
+  ctx.fillStyle = col;
+  ctx.lineWidth = 3.5;
+  ctx.shadowColor = 'rgba(21,17,42,.9)';
+  ctx.shadowBlur = 4;
+  ctx.setLineDash([4, 5]);
+  ctx.lineDashOffset = -t / 30;
+  ctx.beginPath();
+  ctx.moveTo(x + ox, y1);
+  ctx.lineTo(x + ox, y2 - s * 0.12);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.moveTo(x + ox - s * 0.13, y2 - s * 0.2);
+  ctx.lineTo(x + ox + s * 0.13, y2 - s * 0.2);
+  ctx.lineTo(x + ox, y2 - s * 0.02);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
 
 function rrect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
   ctx.beginPath();

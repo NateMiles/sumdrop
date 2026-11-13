@@ -18,6 +18,8 @@ export interface PieceDrawOpts {
   ratio?: number;
   /** Exact received amount, for the need meter. Omit for a plain (unmeasured) piece. */
   received?: number;
+  /** Received amount before a previewed drop; the difference is drawn as newly gained. */
+  receivedBefore?: number;
   /** Values of the touching pieces, bottom first (some themes draw them). */
   neighbors?: number[];
   mood?: Mood;
