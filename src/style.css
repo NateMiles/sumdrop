@@ -174,3 +174,318 @@ body {
   margin: 0;
   color: var(--muted);
 }
+
+/* ---------- small shared pieces ---------- */
+.btn.icon {
+  padding: 7px 9px;
+  display: grid;
+  place-items: center;
+}
+.btn.wide {
+  flex: 1;
+}
+.card .row {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+.card .eyebrow {
+  font: 800 0.72rem var(--body);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--glow);
+}
+.card .goal-line {
+  font: 800 1.25rem var(--display);
+  color: var(--ink);
+}
+.card {
+  max-width: 340px;
+}
+
+/* ---------- world map ---------- */
+.map {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  padding-top: max(16px, env(safe-area-inset-top, 0px));
+  padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.map-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 150px;
+}
+.brand {
+  margin: 0;
+  font: 800 2.6rem/0.95 var(--display);
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  text-shadow: 0 3px 0 #15112a;
+}
+.tagline {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-weight: 700;
+}
+.star-total {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: 800 1.1rem var(--display);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 12px 4px 8px;
+}
+.star-total svg {
+  width: 18px;
+  height: 18px;
+}
+.worlds {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding-bottom: 12px;
+  scrollbar-width: none;
+}
+.worlds::-webkit-scrollbar {
+  display: none;
+}
+.world {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  padding: 16px 14px 18px;
+}
+.world h2 {
+  margin: 0;
+  font: 800 1.35rem/1 var(--display);
+}
+.world p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.path {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-auto-rows: 76px;
+  row-gap: 22px;
+  margin-top: 36px;
+}
+.path > svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.node {
+  position: relative;
+  justify-self: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+.node .disc {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font: 800 1.35rem var(--display);
+  color: #2a0f08;
+  background: var(--node, #ffd27a);
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.28), inset 0 -4px 0 rgba(0, 0, 0, 0.12);
+}
+.node.done .disc {
+  color: #2a0f08;
+}
+.node.locked {
+  cursor: default;
+}
+.node.locked .disc {
+  background: #2c2552;
+  color: #6c5f92;
+  box-shadow: inset 0 0 0 2px #3a3062;
+}
+.node.current .disc {
+  outline: 3px solid var(--ink);
+  outline-offset: 3px;
+  animation: breathe 2.4s ease-in-out infinite;
+}
+.node .cat {
+  position: absolute;
+  top: -30px;
+  width: 44px;
+  height: 44px;
+  pointer-events: none;
+}
+.node .mini-stars {
+  display: flex;
+  gap: 1px;
+  height: 14px;
+}
+.node .mini-stars svg {
+  width: 14px;
+  height: 14px;
+}
+.node:focus-visible .disc {
+  outline: 3px solid var(--coral);
+  outline-offset: 3px;
+}
+@keyframes breathe {
+  50% {
+    transform: scale(1.06);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .node.current .disc {
+    animation: none;
+  }
+}
+.map-foot {
+  display: flex;
+  gap: 8px;
+  padding-top: 8px;
+}
+
+/* ---------- level play ---------- */
+.starbar {
+  position: relative;
+  height: 8px;
+  border-radius: 99px;
+  background: #2c2552;
+  overflow: visible;
+}
+.starbar i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #f2a46b, #ffd27a);
+  transition: width 0.3s ease;
+}
+.starbar .notch {
+  position: absolute;
+  top: -3px;
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--ink);
+  opacity: 0.7;
+}
+.coach {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  font-weight: 700;
+  font-size: 0.92rem;
+  line-height: 1.35;
+}
+.sizes {
+  display: flex;
+  gap: 2px;
+  justify-content: center;
+  margin: 6px 0;
+}
+.sizes figure {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 50px;
+}
+.sizes img {
+  width: 50px;
+  height: 50px;
+}
+.sizes figcaption {
+  font: 800 0.95rem var(--display);
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.sizes figcaption svg {
+  width: 11px;
+  height: 11px;
+}
+.stars-big {
+  display: flex;
+  gap: 6px;
+  align-items: flex-end;
+}
+.stars-big svg {
+  width: 46px;
+  height: 46px;
+}
+.stars-big svg:nth-child(2) {
+  width: 58px;
+  height: 58px;
+}
+.stars-big svg.earned {
+  animation: star-in 0.45s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+}
+.stars-big svg:nth-child(2).earned {
+  animation-delay: 0.25s;
+}
+.stars-big svg:nth-child(3).earned {
+  animation-delay: 0.5s;
+}
+@keyframes star-in {
+  from {
+    transform: scale(0.2) rotate(-30deg);
+    opacity: 0;
+  }
+}
+.stat.low b {
+  color: var(--coral);
+}
+.node .cat {
+  top: -36px;
+  left: 50%;
+  margin-left: -22px;
+}
+.node .cat img {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.coach {
+  background: rgba(29, 24, 56, 0.94);
+}
+/* The backdrop steps back during play so the HUD and coach stay readable. */
+body.playing .sky {
+  opacity: 0.4;
+}
+.node .cat {
+  z-index: 1;
+  top: -50px;
+  width: 58px;
+  height: 58px;
+  margin-left: -29px;
+}

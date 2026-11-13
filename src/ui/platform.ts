@@ -15,6 +15,9 @@ export const haptics = {
   pop(chain: number): void {
     Haptics.impact({ style: chain > 1 ? ImpactStyle.Heavy : ImpactStyle.Medium }).catch(() => {});
   },
+  success(): void {
+    Haptics.notification({ type: NotificationType.Success }).catch(() => {});
+  },
   error(): void {
     Haptics.notification({ type: NotificationType.Error }).catch(() => {});
   },
