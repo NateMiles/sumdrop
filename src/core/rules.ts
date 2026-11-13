@@ -10,6 +10,7 @@
  *   further round of pops is one more step in the chain.
  */
 
+/** Default (Endless) board size. Levels may use other sizes; rules read the size from the grid. */
 export const COLS = 6;
 export const ROWS = 8;
 export const MAX_VALUE = 6;
@@ -48,26 +49,31 @@ export function mulberry32(seed: number): Rng {
 /** Weighted toward small values so exact fills happen often enough. */
 export const SPAWN_WEIGHTS: readonly number[] = [3, 5, 5, 4, 3, 2];
 
-export function spawnValue(rng: Rng): number {
-  const total = SPAWN_WEIGHTS.reduce((a, b) => a + b, 0);
+/** Random cat size. maxValue limits the sizes in play (early levels use only small cats). */
+export function spawnValue(rng: Rng, maxValue = MAX_VALUE): number {
+  const weights = SPAWN_WEIGHTS.slice(0, maxValue);
+  const total = weights.reduce((a, b) => a + b, 0);
   let n = rng() * total;
-  for (let i = 0; i < SPAWN_WEIGHTS.length; i++) {
-    n -= SPAWN_WEIGHTS[i];
+  for (let i = 0; i < weights.length; i++) {
+    n -= weights[i];
     if (n < 0) return i + 1;
   }
-  return SPAWN_WEIGHTS.length;
+  return weights.length;
 }
 
-export function emptyGrid(): Grid {
-  return Array.from({ length: ROWS }, () => Array<Tile | null>(COLS).fill(null));
+export function emptyGrid(rows = ROWS, cols = COLS): Grid {
+  return Array.from({ length: rows }, () => Array<Tile | null>(cols).fill(null));
 }
+
+export const rowsOf = (g: Grid): number => g.length;
+export const colsOf = (g: Grid): number => g[0]?.length ?? 0;
 
 export function cloneGrid(g: Grid): Grid {
   return g.map((row) => row.map((t) => (t ? { ...t } : null)));
 }
 
-export function inBounds(r: number, c: number): boolean {
-  return r >= 0 && r < ROWS && c >= 0 && c < COLS;
+export function inBounds(g: Grid, r: number, c: number): boolean {
+  return r >= 0 && r < g.length && c >= 0 && c < colsOf(g);
 }
 
 export function neighborSum(g: Grid, r: number, c: number): number {
@@ -75,7 +81,7 @@ export function neighborSum(g: Grid, r: number, c: number): number {
   for (const [dr, dc] of DIRS) {
     const r2 = r + dr;
     const c2 = c + dc;
-    if (inBounds(r2, c2)) s += g[r2][c2]?.v ?? 0;
+    if (inBounds(g, r2, c2)) s += g[r2][c2]?.v ?? 0;
   }
   return s;
 }
@@ -88,13 +94,15 @@ export function fillRatio(g: Grid, r: number, c: number): number {
 
 /** Tiles that pop right now: exactly-full tiles plus their same-value connected groups. */
 export function findPops(g: Grid): Cell[] {
+  const rows = rowsOf(g);
+  const cols = colsOf(g);
   const seen = new Set<number>();
   const queue: Cell[] = [];
-  for (let r = 0; r < ROWS; r++) {
-    for (let c = 0; c < COLS; c++) {
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
       const t = g[r][c];
       if (t && neighborSum(g, r, c) === t.v) {
-        seen.add(r * COLS + c);
+        seen.add(r * cols + c);
         queue.push({ r, c });
       }
     }
@@ -107,9 +115,9 @@ export function findPops(g: Grid): Cell[] {
     for (const [dr, dc] of DIRS) {
       const r2 = cell.r + dr;
       const c2 = cell.c + dc;
-      if (!inBounds(r2, c2) || seen.has(r2 * COLS + c2)) continue;
+      if (!inBounds(g, r2, c2) || seen.has(r2 * cols + c2)) continue;
       if (g[r2][c2]?.v !== v) continue;
-      seen.add(r2 * COLS + c2);
+      seen.add(r2 * cols + c2);
       queue.push({ r: r2, c: c2 });
     }
   }
@@ -126,9 +134,10 @@ export interface Fall {
 /** Compacts every column downward. Mutates g and returns the moves made. */
 export function applyGravity(g: Grid): Fall[] {
   const falls: Fall[] = [];
-  for (let c = 0; c < COLS; c++) {
-    let write = ROWS - 1;
-    for (let r = ROWS - 1; r >= 0; r--) {
+  const rows = rowsOf(g);
+  for (let c = 0; c < colsOf(g); c++) {
+    let write = rows - 1;
+    for (let r = rows - 1; r >= 0; r--) {
       const t = g[r][c];
       if (!t) continue;
       if (r !== write) {
@@ -144,7 +153,8 @@ export function applyGravity(g: Grid): Fall[] {
 
 /** Row a tile dropped into column c lands on, or -1 if the column is full. */
 export function landingRow(g: Grid, c: number): number {
-  for (let r = ROWS - 1; r >= 0; r--) if (!g[r][c]) return r;
+  if (c < 0 || c >= colsOf(g)) return -1;
+  for (let r = g.length - 1; r >= 0; r--) if (!g[r][c]) return r;
   return -1;
 }
 

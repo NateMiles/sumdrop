@@ -1,4 +1,4 @@
-import { COLS, ROWS, type Grid, type Wave, PREVIEW_ID, applyGravity, cloneGrid, neighborSum, previewDrop } from '../core/rules';
+import { type Grid, type Wave, PREVIEW_ID, applyGravity, cloneGrid, neighborSum, previewDrop } from '../core/rules';
 import type { DropOutcome, Game } from '../core/game';
 import { palette } from './theme';
 import { CatSprites, drawCat, faceFor, familyColor } from './cats';
@@ -66,6 +66,8 @@ export class BoardView {
     this.parts = [];
     this.floatText = null;
     this.banner = null;
+    this.warnSince = -1;
+    this.hover = Math.min(this.hover, this.game.cols - 1);
   }
 
   resize(): void {
@@ -79,9 +81,11 @@ export class BoardView {
   }
 
   geom(): Geom {
-    const cell = Math.floor(Math.min((this.w - 20) / COLS, (this.h - 20) / (ROWS + 1.4)));
-    const bw = cell * COLS;
-    const bh = cell * ROWS;
+    const { cols, rows } = this.game;
+    // Small (tutorial) boards get bigger cells, but not so big that they stop looking like the real board.
+    const cell = Math.floor(Math.min((this.w - 20) / Math.max(cols, 5), (this.h - 20) / (rows + 1.4)));
+    const bw = cell * cols;
+    const bh = cell * rows;
     const x0 = (this.w - bw) / 2;
     const y0 = (this.h - bh - cell * 1.4) / 2 + cell * 1.4;
     return { cell, x0, y0, bw, bh };
@@ -90,7 +94,7 @@ export class BoardView {
   columnAt(clientX: number): number {
     const rect = this.canvas.getBoundingClientRect();
     const g = this.geom();
-    return Math.max(0, Math.min(COLS - 1, Math.floor((clientX - rect.left - g.x0) / g.cell)));
+    return Math.max(0, Math.min(this.game.cols - 1, Math.floor((clientX - rect.left - g.x0) / g.cell)));
   }
 
   bump(amount: number): void {
@@ -118,9 +122,10 @@ export class BoardView {
     await wait(200);
     await this.playWaves(out.waves);
     if (out.rise) {
-      for (let r = 0; r < ROWS - 1; r++) this.view[r] = this.view[r + 1];
-      this.view[ROWS - 1] = out.rise.row.map((t) => ({ ...t }));
-      out.rise.row.forEach((t) => this.vis.set(t.id, { y: ROWS, vy: 0, fill: 0, flash: 0 }));
+      const rows = this.game.rows;
+      for (let r = 0; r < rows - 1; r++) this.view[r] = this.view[r + 1];
+      this.view[rows - 1] = out.rise.row.map((t) => ({ ...t }));
+      out.rise.row.forEach((t) => this.vis.set(t.id, { y: rows, vy: 0, fill: 0, flash: 0 }));
       this.sfx.rise();
       haptics.thud();
       this.bump(0.4);
@@ -194,7 +199,8 @@ export class BoardView {
     rrect(ctx, g.x0 - 6, g.y0 - 6, g.bw + 12, g.bh + 12, 16);
     ctx.fillStyle = palette.board;
     ctx.fill();
-    for (let c = 0; c < COLS; c++) {
+    const { cols, rows } = game;
+    for (let c = 0; c < cols; c++) {
       rrect(ctx, g.x0 + c * g.cell + 2, g.y0, g.cell - 4, g.bh, 10);
       ctx.fillStyle = !this.busy && !game.over && c === this.hover ? palette.columnHot : palette.column;
       ctx.fill();
@@ -209,7 +215,7 @@ export class BoardView {
     ctx.setLineDash([]);
     // Rise warning: one short shake when the warning starts, then a calm pulsing glow
     // along the bottom until the row rises (a constant jitter read as a bug).
-    const danger = game.untilRise === 1 && !game.over;
+    const danger = game.rising && game.untilRise === 1 && !game.over;
     if (danger && this.warnSince < 0) this.warnSince = t;
     if (!danger) this.warnSince = -1;
     const warnAge = danger ? t - this.warnSince : Infinity;
@@ -227,8 +233,8 @@ export class BoardView {
     ctx.save();
     rrect(ctx, g.x0 - 6, g.y0 - 6, g.bw + 12, g.bh + 12, 16);
     ctx.clip();
-    for (let r = 0; r < ROWS; r++) {
-      for (let c = 0; c < COLS; c++) {
+    for (let r = 0; r < this.view.length; r++) {
+      for (let c = 0; c < this.view[r].length; c++) {
         const tl = this.view[r][c];
         if (!tl) continue;
         const vs = this.visOf(tl.id, r);
@@ -252,7 +258,7 @@ export class BoardView {
           flash: vs.flash,
           glow: wv === 0 ? 0.5 + 0.5 * pulse : 0,
           badge: wv > 0 ? `×${wv + 1}` : null,
-          wobble: r === ROWS - 1 && !this.reduced ? warningWobble(warnAge, t, c) : 0,
+          wobble: r === rows - 1 && !this.reduced ? warningWobble(warnAge, t, c) : 0,
         });
       }
     }
@@ -299,7 +305,7 @@ export class BoardView {
       const hy = g.y0 - g.cell * 1.3;
       drawCat(ctx, this.sprites, hx, hy, g.cell, game.current, { ratio: 0, alpha: this.busy ? 0.45 : 1 });
       const ns = g.cell * 0.5;
-      const leftSide = this.hover >= COLS - 2;
+      const leftSide = this.hover >= cols - 2;
       const nx = leftSide ? g.x0 : g.x0 + g.bw - ns;
       drawCat(ctx, this.sprites, nx, hy + (g.cell - ns) / 2, ns, game.next, { ratio: 0, alpha: 0.8 });
       ctx.fillStyle = palette.muted;
@@ -363,7 +369,7 @@ export class BoardView {
       ctx.save();
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      const msg = this.mouse ? 'Hover a column to preview. Glowing tiles will pop.' : 'Hold a column to preview. Let go to drop.';
+      const msg = this.mouse ? 'Hover a column to preview. Glowing cats fall asleep.' : 'Hold a column to preview. Let go to drop.';
       ctx.font = `700 ${Math.max(12, g.cell * 0.22)}px Nunito, system-ui, sans-serif`;
       const tw = ctx.measureText(msg).width + 24;
       const bx = this.w / 2;

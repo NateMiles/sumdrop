@@ -12,7 +12,8 @@
     "sim": "vite-node scripts/balance.ts",
     "cap:sync": "npm run build && cap sync",
     "cap:ios": "npm run cap:sync && cap open ios",
-    "cap:android": "npm run cap:sync && cap open android"
+    "cap:android": "npm run cap:sync && cap open android",
+    "levels": "vite-node scripts/levels.ts"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.6.0",
