@@ -1,18 +1,11 @@
 import { COLS, ROWS, type Grid, type Wave, PREVIEW_ID, applyGravity, cloneGrid, neighborSum, previewDrop } from '../core/rules';
 import type { DropOutcome, Game } from '../core/game';
-import { palette, tileColor } from './theme';
+import { palette } from './theme';
+import { CatSprites, drawCat, faceFor, familyColor } from './cats';
 import type { Sfx } from './audio';
 import { haptics } from './platform';
 import { warningWobble } from './warning';
 
-const PIPS: Record<number, ReadonlyArray<[number, number]>> = {
-  1: [[0, 0]],
-  2: [[-1, -1], [1, 1]],
-  3: [[-1, -1], [0, 0], [1, 1]],
-  4: [[-1, -1], [1, -1], [-1, 1], [1, 1]],
-  5: [[-1, -1], [1, -1], [0, 0], [-1, 1], [1, 1]],
-  6: [[-1, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [1, 1]],
-};
 const BANNER_WORDS = ['', '', 'Nice', 'Great', 'Awesome', 'Wild', 'Unreal'];
 
 interface Vis { y: number; vy: number; fill: number; flash: number }
@@ -47,6 +40,8 @@ export class BoardView {
   private shake = 0;
   /** Time the rise warning started, or -1 when it isn't showing. */
   private warnSince = -1;
+  /** Cat art; resolves once every sprite has loaded. */
+  readonly sprites = new CatSprites();
   private w = 0;
   private h = 0;
   private ctx: CanvasRenderingContext2D;
@@ -169,7 +164,7 @@ export class BoardView {
     for (let i = 0; i < 14; i++) {
       const a = Math.random() * Math.PI * 2;
       const sp = 0.04 + Math.random() * 0.09;
-      this.parts.push({ x: c + 0.5, y: r + 0.5, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 0.05, life: 1, col: tileColor(v), s: 0.06 + Math.random() * 0.07 });
+      this.parts.push({ x: c + 0.5, y: r + 0.5, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 0.05, life: 1, col: familyColor(v), s: 0.06 + Math.random() * 0.07 });
     }
   }
 
@@ -222,8 +217,8 @@ export class BoardView {
       const glow = 0.35 + 0.25 * Math.sin(t / 380);
       const gy = g.y0 + g.bh;
       const grad = ctx.createLinearGradient(0, gy - g.cell * 1.2, 0, gy + 6);
-      grad.addColorStop(0, 'rgba(255,138,107,0)');
-      grad.addColorStop(1, `rgba(255,138,107,${this.reduced ? 0.4 : glow})`);
+      grad.addColorStop(0, 'rgba(239,111,108,0)');
+      grad.addColorStop(1, `rgba(239,111,108,${this.reduced ? 0.4 : glow})`);
       ctx.fillStyle = grad;
       ctx.fillRect(g.x0 - 6, gy - g.cell * 1.2, g.bw + 12, g.cell * 1.2 + 6);
     }
@@ -250,10 +245,10 @@ export class BoardView {
         vs.fill += ((over ? 1 : sum / tl.v) - vs.fill) * Math.min(1, dt / 90);
         vs.flash = Math.max(0, vs.flash - dt / 200);
         const wv = waveOf(tl.id);
-        drawTile(ctx, g.x0 + c * g.cell, g.y0 + vs.y * g.cell, g.cell, tl.v, {
-          fill: vs.fill,
-          over,
-          t,
+        drawCatTile(ctx, this.sprites, g.x0 + c * g.cell, g.y0 + vs.y * g.cell, g.cell, tl.v, {
+          ratio: vs.fill,
+          face: faceFor(sum / tl.v),
+          stripes: neighborValues(this.view, r, c),
           flash: vs.flash,
           glow: wv === 0 ? 0.5 + 0.5 * pulse : 0,
           badge: wv > 0 ? `×${wv + 1}` : null,
@@ -264,11 +259,11 @@ export class BoardView {
     if (pv) {
       const lf = pv.landingFill;
       const gw = waveOf(PREVIEW_ID);
-      drawTile(ctx, g.x0 + pv.col * g.cell, g.y0 + pv.row * g.cell, g.cell, game.current, {
-        fill: Math.min(1, lf),
-        over: lf > 1,
-        t,
-        alpha: 0.55,
+      drawCatTile(ctx, this.sprites, g.x0 + pv.col * g.cell, g.y0 + pv.row * g.cell, g.cell, game.current, {
+        ratio: Math.min(1, lf),
+        face: faceFor(lf),
+        stripes: neighborValues(game.grid, pv.row, pv.col),
+        alpha: 0.6,
         glow: gw === 0 ? pulse : 0,
         badge: gw > 0 ? `×${gw + 1}` : null,
       });
@@ -276,19 +271,14 @@ export class BoardView {
     ctx.restore();
 
     // pop rings and particles
-    this.fx = this.fx.filter((f) => (f.life -= dt / 320) > 0);
+    this.fx = this.fx.filter((f) => (f.life -= dt / 700) > 0);
     for (const f of this.fx) {
       const x = g.x0 + f.c * g.cell;
       const y = g.y0 + f.r * g.cell;
       const k = 1 - f.life;
-      drawTile(ctx, x, y, g.cell, f.v, { fill: 1, scale: 1 + k * 0.4, alpha: f.life, t });
-      ctx.beginPath();
-      ctx.arc(x + g.cell / 2, y + g.cell / 2, g.cell * (0.4 + k * 1.1), 0, Math.PI * 2);
-      ctx.strokeStyle = tileColor(f.v);
-      ctx.globalAlpha = f.life;
-      ctx.lineWidth = 4 * f.life;
-      ctx.stroke();
-      ctx.globalAlpha = 1;
+      // The cat dozes off and drifts up out of its cushion.
+      const drift = this.reduced ? 0 : k * k * g.cell * 1.1;
+      drawCat(ctx, this.sprites, x + Math.sin(k * 6) * g.cell * 0.04, y - drift, g.cell, f.v, { face: 'asleep', ratio: 1, cushion: false, alpha: f.life });
     }
     this.parts = this.parts.filter((p) => (p.life -= dt / 700) > 0);
     for (const p of this.parts) {
@@ -307,11 +297,11 @@ export class BoardView {
     if (!game.over) {
       const hx = g.x0 + this.hover * g.cell;
       const hy = g.y0 - g.cell * 1.3;
-      drawTile(ctx, hx, hy, g.cell, game.current, { t, alpha: this.busy ? 0.45 : 1, scale: this.busy ? 0.85 : 1 });
+      drawCat(ctx, this.sprites, hx, hy, g.cell, game.current, { ratio: 0, alpha: this.busy ? 0.45 : 1 });
       const ns = g.cell * 0.5;
       const leftSide = this.hover >= COLS - 2;
       const nx = leftSide ? g.x0 : g.x0 + g.bw - ns;
-      drawTile(ctx, nx, hy + (g.cell - ns) / 2, ns, game.next, { t, alpha: 0.7 });
+      drawCat(ctx, this.sprites, nx, hy + (g.cell - ns) / 2, ns, game.next, { ratio: 0, alpha: 0.8 });
       ctx.fillStyle = palette.muted;
       ctx.font = `700 ${Math.max(10, g.cell * 0.17)}px Nunito, system-ui, sans-serif`;
       ctx.textBaseline = 'middle';
@@ -390,6 +380,73 @@ export class BoardView {
 
 /* ---------- drawing helpers ---------- */
 
+const NEIGHBORS: ReadonlyArray<[number, number]> = [
+  [1, 0],
+  [0, -1],
+  [0, 1],
+  [-1, 0],
+];
+
+/** Values of the tiles touching (r, c), bottom first, so blanket stripes stack from the bottom up. */
+function neighborValues(g: Grid, r: number, c: number): number[] {
+  const out: number[] = [];
+  for (const [dr, dc] of NEIGHBORS) {
+    const t = g[r + dr]?.[c + dc];
+    if (t) out.push(t.v);
+  }
+  return out;
+}
+
+interface CatTileOpts {
+  ratio: number;
+  face?: ReturnType<typeof faceFor>;
+  stripes?: number[];
+  alpha?: number;
+  glow?: number;
+  badge?: string | null;
+  flash?: number;
+  wobble?: number;
+  cushion?: boolean;
+}
+
+/** A cat tile plus the board's overlays: preview glow, cascade badge and pop flash. */
+function drawCatTile(ctx: CanvasRenderingContext2D, sprites: CatSprites, x: number, y: number, s: number, v: number, o: CatTileOpts): void {
+  const { glow = 0, badge = null, flash = 0, wobble = 0 } = o;
+  drawCat(ctx, sprites, x + wobble, y, s, v, { ratio: o.ratio, face: o.face, stripes: o.stripes, alpha: o.alpha, cushion: o.cushion });
+  if (glow > 0) {
+    ctx.save();
+    rrect(ctx, x + 2, y + 2, s - 4, s - 4, s * 0.2);
+    ctx.shadowColor = '#fff6d6';
+    ctx.shadowBlur = 16 * glow;
+    ctx.strokeStyle = `rgba(255,246,214,${0.55 + 0.45 * glow})`;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.restore();
+  }
+  if (flash > 0) {
+    ctx.save();
+    rrect(ctx, x + 2, y + 2, s - 4, s - 4, s * 0.2);
+    ctx.fillStyle = `rgba(255,246,214,${flash * 0.6})`;
+    ctx.fill();
+    ctx.restore();
+  }
+  if (badge) {
+    ctx.save();
+    const bx = x + s - s * 0.12;
+    const by = y + s * 0.14;
+    ctx.beginPath();
+    ctx.arc(bx, by, s * 0.17, 0, Math.PI * 2);
+    ctx.fillStyle = palette.coral;
+    ctx.fill();
+    ctx.fillStyle = palette.onCoral;
+    ctx.font = `800 ${s * 0.2}px "Baloo 2", system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(badge, bx, by + s * 0.01);
+    ctx.restore();
+  }
+}
+
 
 function rrect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
   ctx.beginPath();
@@ -403,112 +460,4 @@ function outlinedText(ctx: CanvasRenderingContext2D, s: string, x: number, y: nu
   ctx.strokeText(s, x, y);
   ctx.fillStyle = fill;
   ctx.fillText(s, x, y);
-}
-
-interface TileOpts {
-  fill?: number;
-  over?: boolean;
-  alpha?: number;
-  scale?: number;
-  glow?: number;
-  badge?: string | null;
-  t?: number;
-  flash?: number;
-  wobble?: number;
-}
-
-/** A die whose shell fills with liquid as its neighbors' dots pour in. Exactly full pops; overfull spills. */
-export function drawTile(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, v: number, o: TileOpts = {}): void {
-  const { fill = 0, over = false, alpha = 1, scale = 1, glow = 0, badge = null, t = 0, flash = 0, wobble = 0 } = o;
-  const color = tileColor(v);
-  ctx.save();
-  ctx.globalAlpha = alpha;
-  ctx.translate(x + s / 2 + wobble, y + s / 2);
-  ctx.scale(scale, scale);
-  const sz = s * 0.88;
-  const half = sz / 2;
-  const rad = s * 0.22;
-
-  rrect(ctx, -half, -half + 3, sz, sz, rad);
-  ctx.fillStyle = palette.tileShadow;
-  ctx.fill();
-
-  rrect(ctx, -half, -half, sz, sz, rad);
-  ctx.fillStyle = palette.tileShell;
-  ctx.fill();
-  ctx.save();
-  ctx.clip();
-  ctx.globalAlpha = alpha * (over ? 0.75 : 0.28);
-  ctx.fillStyle = color;
-  ctx.fillRect(-half, -half, sz, sz);
-  ctx.globalAlpha = alpha;
-  if (fill > 0.001 && !over) {
-    const top = half - sz * Math.min(1, fill);
-    const amp = fill < 0.99 ? s * 0.025 : 0;
-    ctx.beginPath();
-    ctx.moveTo(-half, half);
-    for (let i = 0; i <= 12; i++) {
-      const xx = -half + (sz * i) / 12;
-      ctx.lineTo(xx, top + Math.sin(t / 260 + i * 0.8 + x * 0.05) * amp);
-    }
-    ctx.lineTo(half, half);
-    ctx.closePath();
-    ctx.fillStyle = color;
-    ctx.fill();
-  }
-  ctx.restore();
-
-  if (over) {
-    ctx.fillStyle = color;
-    for (const dx of [-0.45, 0.1, 0.5]) {
-      ctx.beginPath();
-      ctx.ellipse(dx * half, -half + s * 0.02, s * 0.06, s * 0.1, 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-
-  rrect(ctx, -half, -half, sz, sz, rad);
-  ctx.strokeStyle = color;
-  ctx.globalAlpha = alpha * 0.55;
-  ctx.lineWidth = 2;
-  ctx.stroke();
-  ctx.globalAlpha = alpha;
-
-  const pr = s * 0.075;
-  const gap = s * 0.22;
-  ctx.fillStyle = over ? palette.pipDim : palette.pip;
-  for (const [px, py] of PIPS[v] ?? []) {
-    ctx.beginPath();
-    ctx.arc(px * gap, py * gap, pr, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  if (glow > 0) {
-    rrect(ctx, -half - 2, -half - 2, sz + 4, sz + 4, rad + 2);
-    ctx.shadowColor = '#ffffff';
-    ctx.shadowBlur = 16 * glow;
-    ctx.strokeStyle = `rgba(255,255,255,${0.55 + 0.45 * glow})`;
-    ctx.lineWidth = 3;
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-  }
-  if (flash > 0) {
-    rrect(ctx, -half, -half, sz, sz, rad);
-    ctx.fillStyle = `rgba(255,255,255,${flash * 0.7})`;
-    ctx.fill();
-  }
-  if (badge) {
-    const bx = half - s * 0.04;
-    const by = -half + s * 0.04;
-    ctx.beginPath();
-    ctx.arc(bx, by, s * 0.17, 0, Math.PI * 2);
-    ctx.fillStyle = palette.coral;
-    ctx.fill();
-    ctx.fillStyle = palette.onCoral;
-    ctx.font = `800 ${s * 0.2}px "Baloo 2", system-ui, sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(badge, bx, by + s * 0.01);
-  }
-  ctx.restore();
 }

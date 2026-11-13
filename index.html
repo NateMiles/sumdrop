@@ -3,10 +3,24 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-    <meta name="theme-color" content="#101c26" />
+    <meta name="theme-color" content="#1d1838" />
     <title>Sum Drop</title>
   </head>
   <body>
+    <div class="sky" aria-hidden="true">
+      <svg viewBox="0 0 400 200" preserveAspectRatio="xMidYMax slice">
+        <g fill="#fff" id="stars"></g>
+        <circle cx="318" cy="58" r="22" fill="#ffeec4" />
+        <circle cx="328" cy="51" r="20" fill="#2a2148" opacity=".25" />
+        <path d="M0 200 L0 160 L40 160 L40 130 L62 114 L84 130 L84 170 L130 170 L130 142 L180 142 L180 122 L200 122 L200 150 L250 150 L250 108 L272 94 L294 108 L294 160 L340 160 L340 134 L400 134 L400 200 Z" fill="#15112a" />
+        <g fill="#ffd27a">
+          <rect x="52" y="134" width="8" height="10" rx="2" /><rect x="66" y="134" width="8" height="10" rx="2" opacity=".5" />
+          <rect x="146" y="152" width="7" height="9" rx="2" /><rect x="262" y="118" width="8" height="11" rx="2" opacity=".8" />
+          <rect x="276" y="118" width="8" height="11" rx="2" /><rect x="356" y="146" width="7" height="9" rx="2" opacity=".6" />
+        </g>
+        <rect x="186" y="106" width="8" height="18" fill="#15112a" />
+      </svg>
+    </div>
     <main class="app">
       <header class="hud">
         <div class="stat"><b id="score">0</b><span>Score</span></div>
@@ -17,18 +31,18 @@
         <button class="btn" id="restart" type="button">Restart</button>
       </header>
       <section class="stage" id="stage">
-        <canvas id="board" aria-label="Sum Drop board"></canvas>
+        <canvas id="board" aria-label="Game board"></canvas>
         <div class="overlay" id="over" hidden>
           <div class="card">
-            <h2>Board full</h2>
+            <h2>The alley is full</h2>
             <p id="over-text">Score 0</p>
             <button class="btn hot" id="again" type="button">Play again</button>
           </div>
         </div>
       </section>
       <p class="rule">
-        <b>Fill a tile to the brim and it pops.</b> Dots touching a tile pour into it. Exactly full pops it, and
-        same-color tiles touching it splash away too. Hold a column to preview the cascade.
+        <b>Tuck every cat in.</b> A cat needs exactly as much warmth as the hearts on its cushion, and it shares its
+        hearts with every cat it touches. Just right, it falls asleep. Same-colored cats nap together.
       </p>
     </main>
     <script type="module" src="/src/main.ts"></script>

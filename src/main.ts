@@ -115,6 +115,16 @@ $('#sound').addEventListener('click', () => {
   renderHud();
 });
 
+/* backdrop stars (fixed pattern, so it looks the same every launch) */
+const starGroup = document.getElementById('stars');
+if (starGroup) {
+  starGroup.innerHTML = Array.from({ length: 36 }, (_, i) => {
+    const x = (i * 97.3) % 400;
+    const y = ((i * 53.7) % 120) + 6;
+    return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(i % 3) * 0.5 + 0.6}" opacity="${0.25 + (i % 4) * 0.12}"/>`;
+  }).join('');
+}
+
 /* layout */
 const resize = () => board.resize();
 addEventListener('resize', resize);
