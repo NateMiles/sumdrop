@@ -21,26 +21,62 @@
         <rect x="186" y="106" width="8" height="18" fill="#15112a" />
       </svg>
     </div>
-    <main class="app">
-      <header class="hud">
-        <div class="stat"><b id="score">0</b><span>Score</span></div>
-        <div class="stat"><b id="best">0</b><span>Best</span></div>
-        <div class="stat"><span>Rise in</span><div class="pips" id="pips"></div></div>
-        <div class="spacer"></div>
-        <button class="btn" id="sound" type="button" aria-pressed="true">Sound</button>
-        <button class="btn" id="restart" type="button">Restart</button>
+    <main class="screen map" id="map">
+      <header class="map-head">
+        <div>
+          <h1 class="brand">Sum Drop</h1>
+          <p class="tagline">Tuck in every cat</p>
+        </div>
+        <div class="star-total" id="star-total" aria-label="Stars earned"></div>
       </header>
+      <div class="worlds" id="worlds"></div>
+      <div class="map-foot">
+        <button class="btn wide" id="endless" type="button">Endless mode</button>
+        <button class="btn" id="sound" type="button" aria-pressed="true">Sound</button>
+      </div>
+    </main>
+    <main class="app" id="play" hidden>
+      <header class="hud">
+        <button class="btn icon" id="back" type="button" aria-label="Back to map">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div class="stat" id="goal-stat" hidden><b id="goal-num">0/0</b><span id="goal-label">Goal</span></div>
+        <div class="stat" id="drops-stat" hidden><b id="drops">0</b><span>Drops</span></div>
+        <div class="stat"><b id="score">0</b><span>Score</span></div>
+        <div class="stat" id="best-stat"><b id="best">0</b><span>Best</span></div>
+        <div class="stat" id="rise-stat"><span>Rise in</span><div class="pips" id="pips"></div></div>
+        <div class="spacer"></div>
+        <button class="btn icon" id="restart" type="button" aria-label="Restart">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M19 12a7 7 0 1 1-2.05-4.95M19 4v4.5h-4.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </header>
+      <div class="starbar" id="starbar" hidden><i id="starfill"></i><em class="notch" id="notch1"></em><em class="notch" id="notch2"></em></div>
+      <p class="coach" id="coach" hidden></p>
       <section class="stage" id="stage">
         <canvas id="board" aria-label="Game board"></canvas>
+        <div class="overlay" id="intro" hidden>
+          <div class="card">
+            <p class="eyebrow" id="intro-world"></p>
+            <h2 id="intro-title"></h2>
+            <p class="goal-line" id="intro-goal"></p>
+            <div class="sizes" id="intro-sizes"></div>
+            <button class="btn hot" id="intro-play" type="button">Play</button>
+          </div>
+        </div>
         <div class="overlay" id="over" hidden>
           <div class="card">
-            <h2>The alley is full</h2>
+            <div class="stars-big" id="over-stars"></div>
+            <h2 id="over-title">The alley is full</h2>
             <p id="over-text">Score 0</p>
-            <button class="btn hot" id="again" type="button">Play again</button>
+            <div class="row">
+              <button class="btn" id="over-map" type="button">Map</button>
+              <button class="btn" id="over-retry" type="button">Retry</button>
+              <button class="btn hot" id="over-next" type="button">Next level</button>
+            </div>
           </div>
         </div>
       </section>
-      <p class="rule">
+      <p class="rule" id="rule">
         <b>Tuck every cat in.</b> A cat needs exactly as much warmth as the hearts on its cushion, and it shares its
         hearts with every cat it touches. Just right, it falls asleep. Same-colored cats nap together.
       </p>
