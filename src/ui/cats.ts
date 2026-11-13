@@ -152,7 +152,17 @@ export interface CatDrawOpts {
   face?: Face;
   cushion?: boolean;
   alpha?: number;
+  /**
+   * Warmth this cat gets from its neighbors. When given, the cushion hearts show it:
+   * one filled heart per point of warmth, hollow hearts for what it still needs, and
+   * all hearts red when it has too much. Without it, all hearts are plain white.
+   */
+  warmth?: number;
 }
+
+const HEART_FILL = '#ffffff';
+const HEART_HOT = '#ff5a5f';
+const HEART_HOLLOW = 'rgba(30,20,50,.38)';
 
 /** Draws one cat tile into the square at (x, y) with side `size`. */
 export function drawCat(ctx: CanvasRenderingContext2D, sprites: CatSprites, x: number, y: number, size: number, v: number, o: CatDrawOpts = {}): void {
@@ -174,12 +184,26 @@ export function drawCat(ctx: CanvasRenderingContext2D, sprites: CatSprites, x: n
     ctx.fillStyle = 'rgba(255,255,255,.18)';
     roundRect(ctx, 8, 85, 84, 5, 2.5);
     ctx.fill();
-    ctx.fillStyle = '#fff';
+    const w = o.warmth;
+    const hot = w !== undefined && w > v;
+    const gap = v >= 6 ? 13.4 : 15;
+    const hs = v >= 6 ? 1.12 : 1.25;
     for (let i = 0; i < v; i++) {
+      const filled = w === undefined || hot || i < w;
       ctx.save();
-      ctx.translate(50 + (i - (v - 1) / 2) * 13, 92.5);
-      ctx.scale(0.95, 0.95);
+      ctx.translate(50 + (i - (v - 1) / 2) * gap, 92.2);
+      ctx.scale(hs, hs);
+      ctx.fillStyle = hot ? HEART_HOT : filled ? HEART_FILL : HEART_HOLLOW;
       ctx.fill(HEART);
+      if (!filled) {
+        ctx.strokeStyle = 'rgba(255,255,255,.9)';
+        ctx.lineWidth = 1.1;
+        ctx.stroke(HEART);
+      } else if (hot) {
+        ctx.strokeStyle = '#7a1a22';
+        ctx.lineWidth = 0.9;
+        ctx.stroke(HEART);
+      }
       ctx.restore();
     }
   }

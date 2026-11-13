@@ -74,6 +74,7 @@ export class Game {
   score = 0;
   longestChain = 0;
   drops = 0;
+  swaps = 0;
   /** Cats put to sleep, in total and by size (index = size). */
   slept = 0;
   sleptBySize: number[] = Array(MAX_VALUE + 1).fill(0);
@@ -125,9 +126,14 @@ export class Game {
         }
       });
     } else {
+      // Uneven column heights (1 to startRows + 1), so cats start with open sides and
+      // visible needs instead of a solid wall of over-warm cats.
       const startRows = cfg.startRows ?? TUNING.startRows;
-      for (let r = this.rows - startRows; r < this.rows; r++) {
-        for (let c = 0; c < this.cols; c++) this.grid[r][c] = this.makeTile();
+      if (startRows > 0) {
+        for (let c = 0; c < this.cols; c++) {
+          const h = 1 + Math.floor(this.rng() * (startRows + 1));
+          for (let k = 0; k < h; k++) this.grid[this.rows - 1 - k][c] = this.makeTile();
+        }
       }
       // Reroll so the opening board is stable (nothing pops before the first move).
       for (let i = 0; i < 50; i++) {
@@ -142,6 +148,7 @@ export class Game {
     this.score = 0;
     this.longestChain = 0;
     this.drops = 0;
+    this.swaps = 0;
     this.slept = 0;
     this.sleptBySize = Array(MAX_VALUE + 1).fill(0);
     const rise = cfg.rise ?? { first: TUNING.firstRiseEvery, min: TUNING.minRiseEvery };
@@ -158,6 +165,14 @@ export class Game {
 
   private makeTile(v = spawnValue(this.rng, this.config.maxValue)): Tile {
     return { id: this.nextId++, v };
+  }
+
+  /** Swaps the cat in hand with the next one. Free and unlimited: it is a planning tool. */
+  swap(): boolean {
+    if (this.over) return false;
+    [this.current, this.next] = [this.next, this.current];
+    this.swaps++;
+    return true;
   }
 
   canDrop(col: number): boolean {

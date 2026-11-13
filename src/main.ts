@@ -24,6 +24,9 @@ let best = 0;
 let shownScore = 0;
 /** Best stars per level id. A level is beaten when it has 1 or more. */
 let progress: Record<string, number> = {};
+/** Night light boosts left in this level or Endless run. */
+const NIGHT_LIGHTS_PER_RUN = 3;
+let nightLights = NIGHT_LIGHTS_PER_RUN;
 
 /* ---------- small svg bits ---------- */
 
@@ -114,7 +117,18 @@ function renderSound(): void {
 
 const GOAL_LABEL: Record<string, string> = { sleep: 'Cats', score: 'Target', chain: 'Chain', clear: 'Cats left' };
 
+function renderTools(): void {
+  const tutorial = mode.kind === 'level' && mode.def.world === 'tutorial';
+  $('.tools').hidden = tutorial;
+  const night = $<HTMLButtonElement>('#night');
+  night.setAttribute('aria-pressed', String(board.nightLight));
+  night.disabled = nightLights <= 0 && !board.nightLight;
+  $('#night-count').textContent = String(nightLights);
+  $<HTMLButtonElement>('#swap').disabled = game.over;
+}
+
 function renderHud(): void {
+  renderTools();
   const isLevel = mode.kind === 'level';
   $('#score').textContent = String(shownScore);
   if (!isLevel && shownScore > best) {
@@ -161,6 +175,8 @@ function startLevel(def: LevelDef, intro = true): void {
 }
 
 function enterPlay(): void {
+  nightLights = NIGHT_LIGHTS_PER_RUN;
+  board.nightLight = false;
   board.sync();
   shownScore = 0;
   $('#over').hidden = true;
@@ -266,6 +282,11 @@ async function drop(col: number): Promise<void> {
     board.showHint = false;
     void storage.set('seenHint', true);
   }
+  // A lit night light is used up by the drop it showed.
+  if (board.nightLight) {
+    board.nightLight = false;
+    nightLights--;
+  }
   renderHud();
   await board.play(out);
 }
@@ -280,6 +301,10 @@ canvas.addEventListener('pointerleave', (e) => {
 });
 canvas.addEventListener('pointerdown', (e) => {
   sfx.unlock();
+  if (board.hitsNext(e.clientX, e.clientY)) {
+    swap();
+    return;
+  }
   board.mouse = e.pointerType === 'mouse';
   board.pressing = true;
   board.hover = board.columnAt(e.clientX);
@@ -329,6 +354,26 @@ $('#over-next').addEventListener('click', () => {
   const nxt = nextLevel(mode.def.id);
   if (nxt) startLevel(nxt);
 });
+function swap(): void {
+  if (board.busy || inputBlocked() || !game.swap()) return;
+  sfx.unlock();
+  sfx.drop();
+  haptics.tap();
+  board.swapped();
+}
+$('#swap').addEventListener('click', swap);
+$('#night').addEventListener('click', () => {
+  if (game.over || inputBlocked()) return;
+  // Toggle: turning it on costs nothing until you drop; turning it off again is free.
+  if (!board.nightLight && nightLights <= 0) return;
+  board.nightLight = !board.nightLight;
+  if (board.nightLight) {
+    sfx.unlock();
+    sfx.toggleChime();
+  }
+  renderTools();
+});
+
 $('#sound').addEventListener('click', () => {
   sfx.muted = !sfx.muted;
   void storage.set('muted', sfx.muted);

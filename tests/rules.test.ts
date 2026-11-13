@@ -135,12 +135,13 @@ describe('spawnValue', () => {
 });
 
 describe('Game', () => {
-  it('starts with a stable two-row board', () => {
-    const game = new Game(42);
-    expect(game.grid[ROWS - 1].every(Boolean)).toBe(true);
-    expect(game.grid[ROWS - 2].every(Boolean)).toBe(true);
-    expect(game.grid[ROWS - 3].some(Boolean)).toBe(false);
-    expect(findPops(game.grid)).toEqual([]);
+  it('starts with a stable board of uneven columns, 1 to 3 cats high', () => {
+    for (const seed of [1, 42, 99]) {
+      const game = new Game(seed);
+      expect(game.grid[ROWS - 1].every(Boolean)).toBe(true);
+      expect(game.grid[ROWS - 4].some(Boolean)).toBe(false);
+      expect(findPops(game.grid)).toEqual([]);
+    }
   });
   it('is deterministic for a seed', () => {
     const a = new Game(7);

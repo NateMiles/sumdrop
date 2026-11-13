@@ -1,6 +1,6 @@
 /**
  * Level tuning: plays every level many times with a careless bot (random drops)
- * and a decent bot (best points next drop, with some mistakes), then prints win
+ * and a decent bot (best points next drop, using swap, with some mistakes), then prints win
  * rates and the final scores of wins, for setting drop limits and star scores.
  * Run: npm run levels
  */
@@ -17,16 +17,23 @@ const randomBot: Bot = (g, rnd) => {
 };
 const decentBot: Bot = (g, rnd) => {
   if (rnd() < 0.2) return randomBot(g, rnd);
+  // Looks at both the cat in hand and the next one, and swaps when the next one is better.
   let best = -1;
   let bestScore = -Infinity;
-  for (const c of open(g)) {
-    const p = previewDrop(g.grid, c, g.current)!;
-    const s = p.points * 10 + p.waves * 50 + p.row;
-    if (s > bestScore) {
-      bestScore = s;
-      best = c;
+  let bestSwap = false;
+  for (const swap of [false, true]) {
+    const v = swap ? g.next : g.current;
+    for (const c of open(g)) {
+      const p = previewDrop(g.grid, c, v)!;
+      const s = p.points * 10 + p.waves * 50 + p.row - (swap ? 1 : 0);
+      if (s > bestScore) {
+        bestScore = s;
+        best = c;
+        bestSwap = swap;
+      }
     }
   }
+  if (bestSwap) g.swap();
   return best;
 };
 

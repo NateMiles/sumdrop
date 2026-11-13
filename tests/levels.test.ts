@@ -109,3 +109,20 @@ describe('goals and results', () => {
     expect(a.grid.map((r) => r.map((t) => t?.v ?? 0))).toEqual(b.grid.map((r) => r.map((t) => t?.v ?? 0)));
   });
 });
+
+describe('swap and chain rewards', () => {
+  it('swap trades the cat in hand with the next one, and the queue continues', () => {
+    const g = new Game(1, { queue: [1, 2, 3] });
+    expect([g.current, g.next]).toEqual([1, 2]);
+    expect(g.swap()).toBe(true);
+    expect([g.current, g.next]).toEqual([2, 1]);
+    g.drop(0);
+    expect([g.current, g.next]).toEqual([1, 3]);
+    expect(g.swaps).toBe(1);
+  });
+
+  it('chain steps double the points: x1, x2, x4, x8', async () => {
+    const { chainMultiplier } = await import('../src/core/rules');
+    expect([1, 2, 3, 4].map(chainMultiplier)).toEqual([1, 2, 4, 8]);
+  });
+});
