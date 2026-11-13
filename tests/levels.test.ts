@@ -126,3 +126,13 @@ describe('swap and chain rewards', () => {
     expect([1, 2, 3, 4].map(chainMultiplier)).toEqual([1, 2, 4, 8]);
   });
 });
+
+describe('world words', () => {
+  it('goal text uses the world theme words, neutral by default', async () => {
+    const { goalText } = await import('../src/core/level');
+    const cats = { pieces: 'cats', sizeNames: ['', 'kittens', 'gingers'], clearVerb: 'Tuck in' };
+    expect(goalText({ kind: 'sleep', count: 5, size: 2 }, cats)).toBe('Tuck in 5 gingers');
+    expect(goalText({ kind: 'clear' }, cats)).toBe('Tuck in all the cats');
+    expect(goalText({ kind: 'sleep', count: 3 })).toBe('Clear 3 pieces');
+  });
+});

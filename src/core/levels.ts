@@ -1,14 +1,26 @@
 import type { LevelDef } from './level';
 
 /**
- * Hand-made levels. Boards are bottom-aligned ('.' empty, digits are cat sizes)
+ * Hand-made levels. Boards are bottom-aligned ('.' empty, digits are piece sizes)
  * and must be stable: nothing may pop before the first drop (tests check this).
  * Run `npm run levels` to see how often bots win each level when tuning.
  */
-export const WORLDS = [
-  { id: 'tutorial', name: 'First Nap', blurb: 'Learn how cats fall asleep' },
-  { id: 'alley', name: 'Cat Nap Alley', blurb: 'Dusk on the rooftops' },
-] as const;
+/**
+ * Worlds. Each has its own theme (art and words); the rules are shared. The
+ * tutorial uses the cat theme because it teaches with the first world's pieces.
+ */
+export interface World {
+  id: string;
+  name: string;
+  blurb: string;
+  theme: string;
+}
+export const WORLDS: World[] = [
+  { id: 'tutorial', name: 'First Nap', blurb: 'Learn the basics', theme: 'cats' },
+  { id: 'alley', name: 'Cat Nap Alley', blurb: 'Dusk on the rooftops', theme: 'cats' },
+];
+
+export const worldOf = (def: LevelDef): World => WORLDS.find((w) => w.id === def.world) ?? WORLDS[0];
 
 export const LEVELS: LevelDef[] = [
   /* ---------- tutorial: tiny boards, fixed cats, no rising ---------- */
