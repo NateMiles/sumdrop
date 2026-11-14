@@ -26,6 +26,12 @@ export interface PieceDrawOpts {
   /** Draw the base the piece sits on (with its need meter). */
   base?: boolean;
   alpha?: number;
+  /** 0..1 pulse for "about to break" effects, driven by the board's clock. */
+  pulse?: number;
+  /** 0..1, set right after the piece's need changed: the number bumps. */
+  bump?: number;
+  /** Show the need number (default true). */
+  number?: boolean;
 }
 
 /** Draws a world's pieces. */

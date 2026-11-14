@@ -536,3 +536,31 @@ body[data-art='cats'] .crystals {
 body[data-art='gems'] #stars {
   fill: #c3e4ff;
 }
+
+/* ---------- tutorial guide ---------- */
+/* The coach line for a tutorial step: a little brighter, with a gold edge. */
+.coach.tip {
+  border-color: rgba(255, 210, 122, 0.6);
+  font-size: 0.98rem;
+}
+.btn.tool.nudge {
+  border-color: #ffd27a;
+  animation: nudge 1.1s ease-in-out infinite;
+}
+@keyframes nudge {
+  0%,
+  100% {
+    box-shadow: 0 0 6px rgba(255, 210, 122, 0.4);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 22px rgba(255, 210, 122, 0.85);
+    transform: scale(1.05);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn.tool.nudge {
+    animation: none;
+    box-shadow: 0 0 18px rgba(255, 210, 122, 0.8);
+  }
+}

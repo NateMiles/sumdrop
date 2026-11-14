@@ -11,6 +11,15 @@ export type Goal =
   /** Clear every piece on the board. */
   | { kind: 'clear' };
 
+/** One step of a tutorial: what to say, and where to point. */
+export interface Tip {
+  text: string;
+  /** Column the guide arrow points at. */
+  col?: number;
+  /** Point at the Swap button first (until the player swaps). */
+  swap?: boolean;
+}
+
 export interface LevelDef {
   id: string;
   world: string;
@@ -23,6 +32,8 @@ export interface LevelDef {
   stars: [number, number];
   /** Coaching line shown above the board (tutorial levels). */
   coach?: string;
+  /** Step-by-step coaching for tutorials: tips[n] shows before drop n. Falls back to coach. */
+  tips?: Tip[];
   rows?: number;
   cols?: number;
   board?: string[];
@@ -30,6 +41,11 @@ export interface LevelDef {
   maxValue?: number;
   /** Rising rows. Omitted means no rising. */
   rise?: { first: number; min: number };
+}
+
+/** The tip for the drop the player is about to make, if any. */
+export function currentTip(def: LevelDef, game: Game): Tip | undefined {
+  return game.over ? undefined : def.tips?.[game.drops];
 }
 
 /** Points per drop left over when a level is won. */

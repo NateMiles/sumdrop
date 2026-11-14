@@ -6,7 +6,7 @@ import './style.css';
 
 import { Game } from './core/game';
 import { previewDrop } from './core/rules';
-import { type LevelDef, goalProgress, goalText, levelConfig, levelResult } from './core/level';
+import { type LevelDef, currentTip, goalProgress, goalText, levelConfig, levelResult } from './core/level';
 import { LEVELS, WORLDS, nextLevel, worldOf } from './core/levels';
 import { BoardView } from './ui/board';
 import { Sfx } from './ui/audio';
@@ -49,6 +49,7 @@ const board = new BoardView(canvas, game, sfx, {
   onSettled() {
     shownScore = game.score;
     renderHud();
+    renderCoach();
     if (game.over) showEnd();
   },
 });
@@ -122,9 +123,30 @@ function renderSound(): void {
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
+/**
+ * Coach line above the board. Tutorials coach step by step: each tip says what to
+ * do and points the guide arrow at the column (or the Swap button) to use.
+ */
+function renderCoach(): void {
+  const def = mode.kind === 'level' ? mode.def : undefined;
+  const tip = def ? currentTip(def, game) : undefined;
+  // Past the scripted steps a tutorial keeps its last tip, without the arrow.
+  const text = tip?.text ?? (def?.tips && !game.over ? def.tips[def.tips.length - 1].text : def?.coach);
+  const coach = $('#coach');
+  coach.hidden = !text;
+  coach.textContent = text ?? '';
+  coach.classList.toggle('tip', !!tip);
+  $('#rule').hidden = !!text;
+  const swapFirst = !!tip?.swap && game.swaps === 0;
+  board.guide = tip && !swapFirst ? { col: tip.col } : null;
+  $('#swap').classList.toggle('nudge', swapFirst);
+}
+
 function renderTools(): void {
   const tutorial = mode.kind === 'level' && mode.def.world === 'tutorial';
-  $('.tools').hidden = tutorial;
+  const teachesSwap = mode.kind === 'level' && tutorial && !!mode.def.tips?.some((t) => t.swap);
+  $('.tools').hidden = tutorial && !teachesSwap;
+  $('#night').hidden = tutorial;
   const night = $<HTMLButtonElement>('#night');
   night.setAttribute('aria-pressed', String(board.nightLight));
   night.disabled = nightLights <= 0 && !board.nightLight;
@@ -188,10 +210,7 @@ function enterPlay(): void {
   shownScore = 0;
   $('#over').hidden = true;
   $('#intro').hidden = true;
-  const coach = mode.kind === 'level' ? mode.def.coach : undefined;
-  $('#coach').hidden = !coach;
-  $('#coach').textContent = coach ?? '';
-  $('#rule').hidden = !!coach;
+  renderCoach();
   const theme = currentTheme();
   $('#rule').innerHTML = theme.words.rule;
   $('#night-label').textContent = theme.words.boost;
@@ -301,6 +320,7 @@ async function drop(col: number): Promise<void> {
     board.nightLight = false;
     nightLights--;
   }
+  board.guide = null;
   renderHud();
   await board.play(out);
 }
@@ -374,6 +394,7 @@ function swap(): void {
   sfx.drop();
   haptics.tap();
   board.swapped();
+  renderCoach();
 }
 $('#swap').addEventListener('click', swap);
 $('#night').addEventListener('click', () => {

@@ -8,7 +8,7 @@ import { warningWobble } from './warning';
 
 const BANNER_WORDS = ['', '', 'Nice', 'Great', 'Awesome', 'Wild', 'Unreal'];
 
-interface Vis { y: number; vy: number; fill: number; flash: number }
+interface Vis { y: number; vy: number; fill: number; flash: number; need?: number; bump: number }
 interface PopFx { v: number; r: number; c: number; life: number }
 interface Particle { x: number; y: number; vx: number; vy: number; life: number; col: string; s: number }
 interface Geom { cell: number; x0: number; y0: number; bw: number; bh: number }
@@ -33,6 +33,8 @@ export class BoardView {
   showHint = false;
   /** Night light boost: the preview also shows everything the drop would put to sleep. */
   nightLight = false;
+  /** Tutorial guide: an arrow over the column to drop in. Null hides it. */
+  guide: { col?: number } | null = null;
   /** Swap animation progress, 1 → 0. */
   private swapFx = 0;
   private view: Grid;
@@ -134,7 +136,7 @@ export class BoardView {
   private visOf(id: number, row: number): Vis {
     let v = this.vis.get(id);
     if (!v) {
-      v = { y: row, vy: 0, fill: 0, flash: 0 };
+      v = { y: row, vy: 0, fill: 0, flash: 0, bump: 0 };
       this.vis.set(id, v);
     }
     return v;
@@ -146,7 +148,7 @@ export class BoardView {
     this.busy = true;
     const { tile, row, col } = out.placed;
     this.view[row][col] = { ...tile };
-    this.vis.set(tile.id, { y: -1, vy: 0, fill: 0, flash: 0 });
+    this.vis.set(tile.id, { y: -1, vy: 0, fill: 0, flash: 0, bump: 0 });
     this.sfx.drop();
     haptics.tap();
     await wait(200);
@@ -155,7 +157,7 @@ export class BoardView {
       const rows = this.game.rows;
       for (let r = 0; r < rows - 1; r++) this.view[r] = this.view[r + 1];
       this.view[rows - 1] = out.rise.row.map((t) => ({ ...t }));
-      out.rise.row.forEach((t) => this.vis.set(t.id, { y: rows, vy: 0, fill: 0, flash: 0 }));
+      out.rise.row.forEach((t) => this.vis.set(t.id, { y: rows, vy: 0, fill: 0, flash: 0, bump: 0 }));
       this.sfx.rise();
       haptics.thud();
       this.bump(0.4);
@@ -304,6 +306,11 @@ export class BoardView {
         const over = sum > tl.v;
         vs.fill += ((over ? 1 : sum / tl.v) - vs.fill) * Math.min(1, dt / 90);
         vs.flash = Math.max(0, vs.flash - dt / 420);
+        // The need number bumps whenever it changes, so you see what a drop did.
+        const need = tl.v - sum;
+        if (vs.need !== undefined && vs.need !== need) vs.bump = 1;
+        vs.need = need;
+        vs.bump = Math.max(0, vs.bump - dt / 380);
         const wv = waveOf(tl.id);
         // Next to the previewed drop: show the warmth it would get, the new part glowing,
         // and a ring saying what happens (gold: clears, mint: warmer, red: too much).
@@ -314,7 +321,7 @@ export class BoardView {
         // Falling pieces leave a short trail so you can follow the cascade.
         if (vs.vy > 0.02 && !this.reduced) {
           for (const [k, a] of [[0.9, 0.22], [1.8, 0.1]] as const) {
-            this.art.draw(ctx, g.x0 + c * g.cell, g.y0 + (vs.y - vs.vy * k) * g.cell, g.cell, tl.v, { ratio: vs.fill, base: false, alpha: a });
+            this.art.draw(ctx, g.x0 + c * g.cell, g.y0 + (vs.y - vs.vy * k) * g.cell, g.cell, tl.v, { ratio: vs.fill, base: false, alpha: a, number: false });
           }
         }
         drawPieceTile(ctx, this.art, g.x0 + c * g.cell, g.y0 + vs.y * g.cell, g.cell, tl.v, {
@@ -323,8 +330,11 @@ export class BoardView {
           ring,
           ringPulse: pulse,
           gain: touched ? `+${game.current}` : null,
-          ratio: vs.fill,
-          mood: moodFor(sum / tl.v),
+          // A touched piece shows the state it would end up in: its new number, cracks or red.
+          ratio: touched ? Math.min(1, warmth / tl.v) : vs.fill,
+          mood: moodFor(warmth / tl.v),
+          pulse,
+          bump: vs.bump,
           stripes: neighborValues(this.view, r, c),
           flash: vs.flash,
           // During playback, pieces about to clear light up gold (flash) before they go.
@@ -347,7 +357,8 @@ export class BoardView {
         ratio: Math.min(1, lf),
         mood: moodFor(lf),
         stripes: neighborValues(game.grid, pv.row, pv.col),
-        alpha: 0.7,
+        alpha: 0.8,
+        pulse,
         glow: gw === 0 ? 0.6 + 0.4 * pulse : 0,
         badge: gw > 0 ? `×${gw + 1}` : null,
       });
@@ -362,6 +373,38 @@ export class BoardView {
       ctx.restore();
     }
     ctx.restore();
+
+    // Tutorial guide: a bouncing arrow and a lit column where the next drop should go.
+    if (this.guide?.col !== undefined && !this.busy && !game.over) {
+      const gc = this.guide.col;
+      const bob = this.reduced ? 0 : Math.sin(t / 220) * g.cell * 0.08;
+      ctx.save();
+      rrect(ctx, g.x0 + gc * g.cell + 2, g.y0, g.cell - 4, g.bh, 10);
+      ctx.strokeStyle = `rgba(255,210,122,${0.55 + 0.35 * pulse})`;
+      ctx.shadowColor = GLOW;
+      ctx.shadowBlur = 16;
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      const ax = g.x0 + (gc + 0.5) * g.cell;
+      const ay = g.y0 + g.cell * 0.12 + bob;
+      const aw = g.cell * 0.26;
+      ctx.beginPath();
+      ctx.moveTo(ax - aw * 0.45, ay);
+      ctx.lineTo(ax + aw * 0.45, ay);
+      ctx.lineTo(ax + aw * 0.45, ay + aw * 0.7);
+      ctx.lineTo(ax + aw, ay + aw * 0.7);
+      ctx.lineTo(ax, ay + aw * 1.55);
+      ctx.lineTo(ax - aw, ay + aw * 0.7);
+      ctx.lineTo(ax - aw * 0.45, ay + aw * 0.7);
+      ctx.closePath();
+      ctx.fillStyle = GLOW;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = palette.outline;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.restore();
+    }
 
     // pop rings and particles
     this.fx = this.fx.filter((f) => (f.life -= dt / 700) > 0);
@@ -532,6 +575,8 @@ interface PieceTileOpts {
   flash?: number;
   wobble?: number;
   cushion?: boolean;
+  pulse?: number;
+  bump?: number;
 }
 
 /** A piece plus the board's overlays: preview glow, cascade badge and clear flash. */
@@ -547,7 +592,7 @@ function drawPieceTile(ctx: CanvasRenderingContext2D, art: PieceArt, x: number, 
     ctx.fill();
     ctx.restore();
   }
-  art.draw(ctx, x + wobble, y, s, v, { ratio: o.ratio, mood: o.mood, neighbors: o.stripes, alpha: o.alpha, base: o.cushion, received: o.warmth, receivedBefore: o.warmthBefore });
+  art.draw(ctx, x + wobble, y, s, v, { ratio: o.ratio, mood: o.mood, neighbors: o.stripes, alpha: o.alpha, base: o.cushion, received: o.warmth, receivedBefore: o.warmthBefore, pulse: o.pulse, bump: o.bump });
   if (glow > 0) {
     ctx.save();
     rrect(ctx, x + 2, y + 2, s - 4, s - 4, s * 0.2);
