@@ -6,9 +6,9 @@ import type { Mood, PieceArt, PieceDrawOpts, Theme } from './types';
  * triangle 3, a square 4, a pentagon 5 and a hexagon 6).
  *
  * The gem itself shows its state, so the board reads at a glance:
- * - the big number counts down the sparks it still needs; at exactly 0 it breaks
+ * - a fraction shows sparks it has over its size (2/4); exactly full (4/4) breaks it
  * - cracks spread and glow as it fills, so a nearly full gem looks ready to burst
- * - below 0 it has too many: it turns dark red and is stuck until a neighbor leaves
+ * - over full (5/4) it has too many: it turns dark red and is stuck until a neighbor leaves
  */
 
 interface Cut {
@@ -220,23 +220,28 @@ function drawGem(ctx: CanvasRenderingContext2D, v: number, look: GemLook): void 
 }
 
 /**
- * The need number in the middle of the gem: sparks still needed. 0 is gold (it breaks),
- * below 0 is red (too many). `fresh` marks a number that just changed in a preview.
+ * The fraction in the middle of the gem: sparks it has / its size, like 2/4. At exactly
+ * full it is gold (it breaks), over full it is red. In hand (no count yet) it shows
+ * just the size, which is also what it gives. `fresh` marks a count changed by a preview.
  */
-function drawNeed(ctx: CanvasRenderingContext2D, v: number, need: number, fresh: boolean, bump: number): void {
-  const size = (v === 1 ? 32 : v === 2 ? 34 : 38) * (1 + 0.45 * bump);
-  const text = need < 0 ? `\u2212${-need}` : String(need);
+function drawCount(ctx: CanvasRenderingContext2D, v: number, got: number | undefined, fresh: boolean, bump: number): void {
+  const k = 1 + 0.4 * bump;
+  const over = got !== undefined && got > v;
+  const full = got === v;
+  const text = got === undefined ? String(v) : `${got}/${v}`;
+  const base = got === undefined ? (v === 1 ? 32 : v === 2 ? 34 : 38) : v === 1 ? 22 : v === 2 ? 25 : got >= 10 ? 24 : 28;
+  const size = base * k;
   ctx.save();
   ctx.font = `800 ${size}px "Baloo 2", system-ui, sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   const y = (v === 3 ? 7 : 2) + size * 0.04;
   ctx.lineJoin = 'round';
-  ctx.lineWidth = 7;
-  ctx.strokeStyle = need < 0 ? '#3a0010' : 'rgba(16,14,40,.85)';
+  ctx.lineWidth = size * 0.22;
+  ctx.strokeStyle = over ? '#3a0010' : 'rgba(16,14,40,.88)';
   ctx.strokeText(text, 0, y);
-  ctx.fillStyle = need < 0 ? '#ffb3b8' : need === 0 ? SPARK_NEW : fresh ? SPARK_NEW : '#ffffff';
-  if (need === 0 || fresh) {
+  ctx.fillStyle = over ? '#ffb3b8' : full || fresh ? SPARK_NEW : '#ffffff';
+  if (full || fresh) {
     ctx.shadowColor = SPARK_NEW;
     ctx.shadowBlur = 10;
   }
@@ -271,9 +276,8 @@ class GemArt implements PieceArt {
     ctx.scale(size / 100, size / 100);
     drawGem(ctx, v, { fill: ratio, mood, pulse: o.pulse });
     if (o.number !== false) {
-      const need = v - (o.received ?? 0);
       const fresh = o.receivedBefore !== undefined && o.receivedBefore !== o.received;
-      drawNeed(ctx, v, need, fresh, o.bump ?? 0);
+      drawCount(ctx, v, o.received, fresh, o.bump ?? 0);
     }
     ctx.restore();
   }
@@ -337,7 +341,7 @@ export const gemTheme: Theme = {
     notCleared: 'still dark',
     unit: 'spark',
     rule:
-      '<b>Count every gem down to 0.</b> The number is the sparks a gem still needs. Each gem gives one spark per side to the gems it touches. At exactly 0 it breaks. Below 0 it turns red and waits for a neighbor to leave. Same gems break together.',
+      '<b>Fill every gem exactly.</b> A gem shows sparks it has over sparks it needs, like 2/4. Each gem gives its own number to every gem it touches. Exactly full (4/4), it breaks. Over full (5/4), it turns red and waits for a neighbor to leave. Same gems break together.',
     mouseHint: 'Hover a column to preview where your gem lands.',
     boost: 'Lantern',
     winTitle: 'Brilliant!',

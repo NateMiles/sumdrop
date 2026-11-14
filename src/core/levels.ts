@@ -37,8 +37,8 @@ export const LEVELS: LevelDef[] = [
     drops: 4,
     stars: [0, 0],
     tips: [
-      { col: 1, text: 'The number on a gem is how many sparks it needs. Each gem you drop gives sparks to the gems it touches. Drop your 1 next to the other 1.' },
-      { col: 2, text: 'Both got exactly what they needed, so both broke! Do it again.' },
+      { col: 1, text: 'A gem shows sparks it has over sparks it needs: 0/1 needs 1 spark. Each gem gives its own number to the gems it touches. Drop your 1 next to the other 1.' },
+      { col: 2, text: 'Both hit 1/1, exactly full, so both broke! Do it again.' },
     ],
   },
   {
@@ -53,8 +53,8 @@ export const LEVELS: LevelDef[] = [
     drops: 4,
     stars: [0, 0],
     tips: [
-      { col: 0, text: 'This triangle needs 3. Your round gem gives 1. Drop it beside the triangle and watch the number drop.' },
-      { col: 2, text: 'It cracked: now it needs 2. Your lens gives 2. Drop it on the other side.' },
+      { col: 0, text: 'This triangle is 0/3. Your round gem gives 1. Drop it beside the triangle and watch it fill.' },
+      { col: 2, text: 'Now it is 1/3. Your lens gives 2. Drop it on the other side to make 3/3.' },
     ],
   },
   {
@@ -69,7 +69,7 @@ export const LEVELS: LevelDef[] = [
     drops: 4,
     stars: [0, 0],
     tips: [
-      { col: 1, text: 'Red means too many sparks. The top gem needs 1 but gets 2, so it is stuck until a neighbor leaves. Break the lens under it.' },
+      { col: 1, text: 'Red means too many. The top gem is 2/1, so it is stuck until a neighbor leaves. Break the lens under it.' },
     ],
   },
   {
@@ -99,7 +99,7 @@ export const LEVELS: LevelDef[] = [
     drops: 3,
     stars: [0, 0],
     tips: [
-      { swap: true, col: 1, text: 'The lens needs 2, but your gem only gives 1. Tap Swap to use the next gem instead.' },
+      { swap: true, col: 1, text: 'The lens is 0/2, but your gem only gives 1. Tap Swap to use the next gem instead.' },
     ],
   },
 
@@ -108,7 +108,7 @@ export const LEVELS: LevelDef[] = [
     id: 'g1',
     world: 'grotto',
     name: 'First glimmer',
-    coach: 'Each number counts down to 0. No good spot? Tap Swap to use the next gem first.',
+    coach: 'Fill each gem exactly: 4/4 breaks, 5/4 is too many. No good spot? Tap Swap to use the next gem first.',
     goal: { kind: 'sleep', count: 10 },
     rows: 7,
     board: ['.3.2.3', '213131'],
@@ -256,7 +256,7 @@ export const LEVELS: LevelDef[] = [
     id: 'c1',
     world: 'alley',
     name: 'Rooftop dusk',
-    coach: 'Cats work like gems: the bubble counts the hearts each cat still needs. Bigger cats need more.',
+    coach: 'Cats work like gems: the bubble shows hearts it has over hearts it needs. Bigger cats need more.',
     goal: { kind: 'sleep', count: 18 },
     board: ['.2...3', '31.3.2', '115131'],
     maxValue: 5,

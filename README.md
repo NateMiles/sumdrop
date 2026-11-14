@@ -18,7 +18,7 @@ The game opens on a world map. **First Light** is a 5-lesson tutorial on tiny bo
 
 **Power-ups** per level: Swap (free), Lantern (3, from Gem Grotto 2), Hammer (2, smash any piece without using a drop, from level 5) and Pick (1, choose the piece in hand, from level 8). Unlock levels are in `TOOL_UNLOCK`.
 
-Every piece shows its state on itself: a number counting down the sparks (or hearts) it still needs, 0 breaks it, and below 0 it turns red (too many, stuck until a neighbor leaves). Gems also crack and glow as they fill. Holding a column shows each touched piece's new number before you drop.
+Every piece shows its state on itself as a fraction: sparks (or hearts) it has over its size, like 2/4. Exactly full (4/4) breaks it; over full (5/4) turns it red, stuck until a neighbor leaves. Gems also crack and glow as they fill. The piece in hand shows just its size, which is what it gives. Holding a column shows each touched piece's new fraction before you drop.
 
 Each world has a **theme** (`src/themes/`): its piece art, the icon for one unit of need, and its words ("Tuck in 5 gingers", "still awake"). The rules, swap, night light and chains are shared by every world. Gem Grotto and the tutorial use the gem theme (a gem's number of sides is its size), Cat Nap Alley uses the cat theme, and Endless uses the default (gem) theme. Each theme also picks the backdrop and the name of the chain-preview boost (Lantern, Night light). To add a world, add a theme next to `cats.ts`, register it in `src/themes/index.ts`, and point the world at it in `WORLDS`.
 
