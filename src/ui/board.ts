@@ -160,6 +160,17 @@ export class BoardView {
 
   async play(out: DropOutcome): Promise<void> {
     this.busy = true;
+    try {
+      await this.replay(out);
+    } finally {
+      // Whatever happens in the replay, end in sync with the game and keep it playable.
+      this.view = cloneGrid(this.game.grid);
+      this.busy = false;
+      this.cb.onSettled();
+    }
+  }
+
+  private async replay(out: DropOutcome): Promise<void> {
     if (out.placed) {
       const { tile, row, col } = out.placed;
       this.view[row][col] = { ...tile };
@@ -184,10 +195,6 @@ export class BoardView {
       await wait(320);
       await this.playWaves(out.rise.waves);
     }
-    // The view should now equal the game's grid; resync defensively.
-    this.view = cloneGrid(this.game.grid);
-    this.busy = false;
-    this.cb.onSettled();
   }
 
   private async playWaves(waves: Wave[]): Promise<void> {

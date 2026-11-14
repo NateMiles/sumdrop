@@ -168,3 +168,52 @@ describe('world words', () => {
     expect(goalText({ kind: 'sleep', count: 3 })).toBe('Clear 3 pieces');
   });
 });
+
+describe('rising rows', () => {
+  it('the outcome keeps the risen row as it rose, even when it sets off a chain', () => {
+    // Regression: the outcome used to share the grid's bottom row, so a chain after the
+    // rise blanked cells in it and the board crashed replaying it.
+    let chainsAfterRise = 0;
+    for (let seed = 1; seed <= 300; seed++) {
+      const g = new Game(seed, levelConfig(levelById('c5')!));
+      for (let i = 0; !g.over && i < 60; i++) {
+        const open = [...Array(g.cols).keys()].filter((c) => g.canDrop(c));
+        const out = g.drop(open[(seed * 7 + i * 13) % open.length]);
+        if (out.kind !== 'dropped' || !out.rise) continue;
+        expect(out.rise.row).toHaveLength(g.cols);
+        for (const t of out.rise.row) expect(t).toMatchObject({ id: expect.any(Number), v: expect.any(Number) });
+        if (out.rise.waves.length) chainsAfterRise++;
+      }
+    }
+    expect(chainsAfterRise).toBeGreaterThan(0);
+  });
+});
+
+describe('keep going after the goal', () => {
+  const def = { ...levelById('t1')!, stars: [200, 400] as [number, number] };
+
+  it('meeting the goal wins but leaves the game open, and finish() banks the drops left', () => {
+    const g = new Game(1, levelConfig(def));
+    g.drop(1);
+    const out = g.drop(2);
+    expect(out.kind === 'dropped' && out.won).toBe(true);
+    expect(g.won).toBe(true);
+    expect(g.over).toBe(false);
+    expect(g.finish()).toBe(true);
+    expect(g.endReason).toBe('won');
+    expect(levelResult(def, g).bonus).toBe(2 * LEFTOVER_BONUS);
+  });
+
+  it('playing on until the drops run out is still a win', () => {
+    const g = new Game(1, levelConfig(def));
+    for (const c of [1, 2, 0, 0]) g.drop(c);
+    expect(g.over).toBe(true);
+    expect(g.endReason).toBe('won');
+    expect(levelResult(def, g).stars).toBeGreaterThan(0);
+  });
+
+  it('tutorials still end right at the goal', () => {
+    const { g } = play('t1', [1, 2]);
+    expect(g.over).toBe(true);
+  });
+});

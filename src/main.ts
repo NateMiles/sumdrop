@@ -6,7 +6,7 @@ import './style.css';
 
 import { Game } from './core/game';
 import { previewDrop } from './core/rules';
-import { type LevelDef, currentTip, goalProgress, goalText, levelConfig, levelResult } from './core/level';
+import { type LevelDef, LEFTOVER_BONUS, currentTip, goalProgress, goalText, levelConfig, levelResult } from './core/level';
 import { LEVELS, toolAvailable, WORLDS, nextLevel, worldOf } from './core/levels';
 import { BoardView } from './ui/board';
 import { Sfx } from './ui/audio';
@@ -32,6 +32,8 @@ let nightLights = NIGHT_LIGHTS_PER_RUN;
 const HAMMERS_PER_RUN = 2;
 const PICKS_PER_RUN = 1;
 let hammers = HAMMERS_PER_RUN;
+/** The "goal complete, keep going?" card shows once per level run. */
+let goalCardShown = false;
 let picks = PICKS_PER_RUN;
 
 /* ---------- small svg bits ---------- */
@@ -56,6 +58,7 @@ const board = new BoardView(canvas, game, sfx, {
     renderHud();
     renderCoach();
     if (game.over) showEnd();
+    else if (game.won && !goalCardShown) showGoalCard();
   },
 });
 
@@ -178,6 +181,7 @@ function renderHud(): void {
   }
   $('#best').textContent = String(best);
   $('#best-stat').hidden = isLevel;
+  $('#finish').hidden = !(game.won && !game.over);
   $('#rise-stat').hidden = !game.rising;
   $('#pips').innerHTML = Array.from({ length: game.riseEvery }, (_, i) => `<i class="${i < game.untilRise ? 'on' : ''}"></i>`).join('');
   $('#goal-stat').hidden = !isLevel;
@@ -236,6 +240,8 @@ function enterPlay(): void {
   board.nightLight = false;
   board.hammer = false;
   $('#picker').hidden = true;
+  $('#goal-card').hidden = true;
+  goalCardShown = false;
   board.sync();
   shownScore = 0;
   $('#over').hidden = true;
@@ -269,6 +275,44 @@ function showIntro(def: LevelDef): void {
   $('#intro-sizes').innerHTML = sizes.map((v) => `<figure>${pieceImg(theme, v)}<figcaption>${v}${theme.art.unitSvg}</figcaption></figure>`).join('');
   $('#intro').hidden = false;
 }
+
+/* ---------- goal met: finish or keep going ---------- */
+
+/**
+ * Shown once when the goal is met with drops to spare. Finishing banks the bonus for
+ * the drops left; keeping going trades that bonus for whatever more you can score.
+ */
+function showGoalCard(): void {
+  if (mode.kind !== 'level') return;
+  goalCardShown = true;
+  const res = levelResult(mode.def, game);
+  // Nothing more to earn: finish right away.
+  if (res.stars >= 3 || game.dropsLeft <= 0) {
+    finishLevel();
+    return;
+  }
+  sfx.toggleChime();
+  haptics.success();
+  const fmt = (n: number) => n.toLocaleString('en-US');
+  const need = res.stars === 1 ? mode.def.stars[0] : mode.def.stars[1];
+  $('#goal-stars').innerHTML = [1, 2, 3].map((n) => star(n <= res.stars, n <= res.stars ? 'earned' : '')).join('');
+  $('#goal-text').textContent =
+    `Finish now for ${res.stars} star${res.stars > 1 ? 's' : ''}: ${fmt(res.score)} points with +${fmt(res.bonus)} for ${game.dropsLeft} drops left. ` +
+    `Or keep going and reach ${fmt(need)} for the next star. Each drop you use gives up its ${LEFTOVER_BONUS} bonus.`;
+  $('#goal-card').hidden = false;
+}
+
+function finishLevel(): void {
+  $('#goal-card').hidden = true;
+  if (board.busy || !game.finish()) return;
+  renderHud();
+  showEnd();
+}
+$('#goal-finish').addEventListener('click', finishLevel);
+$('#finish').addEventListener('click', finishLevel);
+$('#goal-continue').addEventListener('click', () => {
+  $('#goal-card').hidden = true;
+});
 
 /* ---------- end of a game ---------- */
 
@@ -330,7 +374,7 @@ function showEnd(): void {
 
 /* ---------- input ---------- */
 
-const inputBlocked = () => !$('#intro').hidden || !$('#over').hidden || !$('#picker').hidden;
+const inputBlocked = () => !$('#intro').hidden || !$('#over').hidden || !$('#picker').hidden || !$('#goal-card').hidden;
 
 async function drop(col: number): Promise<void> {
   if (board.busy || game.over || inputBlocked()) return;

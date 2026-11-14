@@ -613,3 +613,13 @@ body[data-art='gems'] #stars {
   width: 40px;
   height: 40px;
 }
+
+/* Finish button in the HUD after the goal is met (keep-going mode). */
+.btn.finish {
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  background: #ffd27a;
+  color: #2a1a08;
+  border-color: transparent;
+  margin-right: 6px;
+}

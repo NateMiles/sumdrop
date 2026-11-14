@@ -49,8 +49,10 @@ export interface GameConfig {
   bombs?: number;
   /** Chance (0..1) that a cell of a rising row is a stone. */
   stones?: number;
-  /** Checked after every drop. Returning true ends the game as a win. */
+  /** Checked after every move. Returning true wins the game (and ends it, unless keepGoing). */
   goalMet?: (game: Game) => boolean;
+  /** After the goal is met, keep playing until the drops run out or finish() is called. */
+  keepGoing?: boolean;
 }
 
 export interface DropOutcome {
@@ -61,7 +63,7 @@ export interface DropOutcome {
   /** Present when a new row rose from the bottom after this drop. */
   rise?: { row: Tile[]; waves: Wave[] };
   gameOver: boolean;
-  /** True when this drop met the level goal. */
+  /** True when this move met the level goal. */
   won: boolean;
   /** Points scored by this whole drop, including any rise cascade. */
   points: number;
@@ -242,12 +244,7 @@ export class Game {
     const points = waves.reduce((s, w) => s + w.points, 0);
     this.score += points;
     this.longestChain = Math.max(this.longestChain, waves.length - 1);
-    const won = this.config.goalMet?.(this) ?? false;
-    if (won) {
-      this.won = true;
-      this.over = true;
-      this.endReason = 'won';
-    }
+    const won = this.settle(false);
     return { kind: 'dropped', waves, gameOver: this.over, won, points };
   }
 
@@ -281,12 +278,15 @@ export class Game {
             stones && this.rng() < stones ? ({ id: this.nextId++, v: 0, kind: 'stone' } as Tile) : this.makeTile(),
           );
           for (let r = 0; r < this.rows - 1; r++) this.grid[r] = this.grid[r + 1];
-          this.grid[this.rows - 1] = newRow;
+          // The grid gets its own copy: the cascade below changes the bottom row, and the
+          // outcome must keep the row as it rose so the board can replay it.
+          this.grid[this.rows - 1] = [...newRow];
+          const risen = newRow.map((t) => ({ ...t }));
           const riseWaves = resolveCascade(this.grid);
           this.count(riseWaves);
           points += riseWaves.reduce((s, w) => s + w.points, 0);
           chain = Math.max(chain, riseWaves.length);
-          rise = { row: newRow, waves: riseWaves };
+          rise = { row: risen, waves: riseWaves };
           this.riseEvery = Math.max(riseCfg.min, this.riseEvery - 1);
           this.untilRise = this.riseEvery;
         }
@@ -296,14 +296,32 @@ export class Game {
 
     this.score += points;
     this.longestChain = Math.max(this.longestChain, chain);
-    // The goal is checked first, so meeting it on the last drop still wins.
-    const won = this.config.goalMet?.(this) ?? false;
-    if (won) this.endReason = 'won';
+    const won = this.settle(full);
+    return { kind: 'dropped', placed: { tile, row, col }, waves, rise, gameOver: this.over, won, points };
+  }
+
+  /**
+   * Checks the goal and the end conditions after a move. Returns true when this move
+   * met the goal. The goal is checked first, so meeting it on the last drop still wins.
+   * With keepGoing, meeting the goal doesn't end the game: the player may play on for
+   * more points (or finish()) until the drops run out or the board fills, and still wins.
+   */
+  private settle(full: boolean): boolean {
+    const justMet = !this.won && (this.config.goalMet?.(this) ?? false);
+    if (justMet) this.won = true;
+    if (this.won && (!this.config.keepGoing || full || this.dropsLeft <= 0)) this.endReason = 'won';
     else if (full) this.endReason = 'full';
     else if (this.dropsLeft <= 0) this.endReason = 'outOfDrops';
-    this.won = won;
     this.over = this.endReason !== null;
-    return { kind: 'dropped', placed: { tile, row, col }, waves, rise, gameOver: this.over, won, points };
+    return justMet;
+  }
+
+  /** Ends a won game now (keepGoing), banking the drops left. */
+  finish(): boolean {
+    if (!this.won || this.over) return false;
+    this.endReason = 'won';
+    this.over = true;
+    return true;
   }
 }
 
