@@ -7,7 +7,7 @@ import './style.css';
 import { Game } from './core/game';
 import { previewDrop } from './core/rules';
 import { type LevelDef, currentTip, goalProgress, goalText, levelConfig, levelResult } from './core/level';
-import { LEVELS, WORLDS, nextLevel, worldOf } from './core/levels';
+import { LEVELS, toolAvailable, WORLDS, nextLevel, worldOf } from './core/levels';
 import { BoardView } from './ui/board';
 import { Sfx } from './ui/audio';
 import { DEFAULT_THEME, type Theme, themeById } from './themes';
@@ -28,6 +28,11 @@ let progress: Record<string, number> = {};
 /** Night light boosts left in this level or Endless run. */
 const NIGHT_LIGHTS_PER_RUN = 3;
 let nightLights = NIGHT_LIGHTS_PER_RUN;
+/** Power-ups per level (or Endless run). */
+const HAMMERS_PER_RUN = 2;
+const PICKS_PER_RUN = 1;
+let hammers = HAMMERS_PER_RUN;
+let picks = PICKS_PER_RUN;
 
 /* ---------- small svg bits ---------- */
 
@@ -143,10 +148,19 @@ function renderCoach(): void {
 }
 
 function renderTools(): void {
-  const tutorial = mode.kind === 'level' && mode.def.world === 'tutorial';
-  const teachesSwap = mode.kind === 'level' && tutorial && !!mode.def.tips?.some((t) => t.swap);
+  const def = mode.kind === 'level' ? mode.def : undefined;
+  const tutorial = def?.world === 'tutorial';
+  const teachesSwap = tutorial && !!def?.tips?.some((t) => t.swap);
   $('.tools').hidden = tutorial && !teachesSwap;
-  $('#night').hidden = tutorial;
+  $('#night').hidden = !toolAvailable('lantern', def);
+  $('#hammer').hidden = !toolAvailable('hammer', def);
+  $('#pick').hidden = !toolAvailable('pick', def);
+  const hammer = $<HTMLButtonElement>('#hammer');
+  hammer.setAttribute('aria-pressed', String(board.hammer));
+  hammer.disabled = game.over || (hammers <= 0 && !board.hammer);
+  $('#hammer-count').textContent = String(hammers);
+  $<HTMLButtonElement>('#pick').disabled = game.over || picks <= 0;
+  $('#pick-count').textContent = String(picks);
   const night = $<HTMLButtonElement>('#night');
   night.setAttribute('aria-pressed', String(board.nightLight));
   night.disabled = nightLights <= 0 && !board.nightLight;
@@ -175,9 +189,21 @@ function renderHud(): void {
   const g = def.goal;
   const pieces = cap(currentTheme().words.pieces);
   $('#goal-label').textContent =
-    g.kind === 'sleep' ? (g.size ? 'Goal' : pieces) : g.kind === 'score' ? 'Target' : g.kind === 'chain' ? 'Chain' : `${pieces} left`;
+    g.kind === 'sleep'
+      ? g.size
+        ? 'Goal'
+        : pieces
+      : g.kind === 'score'
+        ? 'Target'
+        : g.kind === 'chain'
+          ? 'Chain'
+          : g.kind === 'stones'
+            ? 'Stones left'
+            : g.kind === 'ice'
+              ? 'Ice left'
+              : `${pieces} left`;
   $('#goal-num').textContent =
-    g.kind === 'score' ? String(g.target) : g.kind === 'clear' ? String(p.need - p.have) : `${Math.min(p.have, p.need)}/${p.need}`;
+    g.kind === 'score' ? String(g.target) : g.kind === 'sleep' || g.kind === 'chain' ? `${Math.min(p.have, p.need)}/${p.need}` : String(p.need - p.have);
   $('#drops').textContent = String(game.dropsLeft);
   $('#drops-stat').classList.toggle('low', game.dropsLeft <= 3);
   if (def.stars[1]) {
@@ -205,7 +231,11 @@ function startLevel(def: LevelDef, intro = true): void {
 
 function enterPlay(): void {
   nightLights = NIGHT_LIGHTS_PER_RUN;
+  hammers = HAMMERS_PER_RUN;
+  picks = PICKS_PER_RUN;
   board.nightLight = false;
+  board.hammer = false;
+  $('#picker').hidden = true;
   board.sync();
   shownScore = 0;
   $('#over').hidden = true;
@@ -300,7 +330,7 @@ function showEnd(): void {
 
 /* ---------- input ---------- */
 
-const inputBlocked = () => !$('#intro').hidden || !$('#over').hidden;
+const inputBlocked = () => !$('#intro').hidden || !$('#over').hidden || !$('#picker').hidden;
 
 async function drop(col: number): Promise<void> {
   if (board.busy || game.over || inputBlocked()) return;
@@ -335,6 +365,15 @@ canvas.addEventListener('pointerleave', (e) => {
 });
 canvas.addEventListener('pointerdown', (e) => {
   sfx.unlock();
+  if (board.hammer) {
+    const cell = board.cellAt(e.clientX, e.clientY);
+    if (cell && game.grid[cell.r][cell.c]) void smash(cell.r, cell.c);
+    else {
+      board.hammer = false;
+      renderTools();
+    }
+    return;
+  }
   if (board.hitsNext(e.clientX, e.clientY)) {
     swap();
     return;
@@ -388,6 +427,53 @@ $('#over-next').addEventListener('click', () => {
   const nxt = nextLevel(mode.def.id);
   if (nxt) startLevel(nxt);
 });
+/** Hammer: breaks one piece (with its blast) and whatever that sets off. Uses no drop. */
+async function smash(r: number, c: number): Promise<void> {
+  if (board.busy || game.over || inputBlocked() || hammers <= 0) return;
+  const out = game.smash(r, c);
+  board.hammer = false;
+  if (!out) return renderTools();
+  hammers--;
+  board.guide = null;
+  renderHud();
+  await board.play(out);
+}
+$('#hammer').addEventListener('click', () => {
+  if (game.over || inputBlocked() || board.busy) return;
+  if (!board.hammer && hammers <= 0) return;
+  board.hammer = !board.hammer;
+  if (board.hammer) sfx.unlock();
+  renderTools();
+});
+
+/** Pick: choose the piece in hand. */
+$('#pick').addEventListener('click', () => {
+  if (game.over || inputBlocked() || board.busy || picks <= 0) return;
+  sfx.unlock();
+  board.hammer = false;
+  const theme = currentTheme();
+  const maxV = Math.max(mode.kind === 'level' ? mode.def.maxValue ?? 6 : 6, game.current);
+  $('#pick-row').innerHTML = Array.from({ length: maxV }, (_, i) => i + 1)
+    .map((v) => `<button type="button" data-v="${v}">${pieceImg(theme, v)}${v}</button>`)
+    .join('');
+  $('#picker').hidden = false;
+});
+$('#pick-row').addEventListener('click', (e) => {
+  const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('button[data-v]');
+  if (!btn) return;
+  if (game.pick(Number(btn.dataset.v))) {
+    picks--;
+    board.swapped();
+    sfx.toggleChime();
+    haptics.tap();
+  }
+  $('#picker').hidden = true;
+  renderTools();
+});
+$('#pick-cancel').addEventListener('click', () => {
+  $('#picker').hidden = true;
+});
+
 function swap(): void {
   if (board.busy || inputBlocked() || !game.swap()) return;
   sfx.unlock();
@@ -465,5 +551,6 @@ void boot();
     if (def) startLevel(def, false);
   },
   startEndless,
-  preview: (col: number) => previewDrop(game.grid, col, game.current),
+  preview: (col: number) => previewDrop(game.grid, col, game.current, game.currentBomb),
+  smash,
 };
