@@ -24,7 +24,7 @@ const decentBot: Bot = (g, rnd) => {
   for (const swap of [false, true]) {
     const v = swap ? g.next : g.current;
     for (const c of open(g)) {
-      const p = previewDrop(g.grid, c, v)!;
+      const p = previewDrop(g.grid, c, v, swap ? g.nextBomb : g.currentBomb)!;
       const s = p.points * 10 + p.waves * 50 + p.row - (swap ? 1 : 0);
       if (s > bestScore) {
         bestScore = s;

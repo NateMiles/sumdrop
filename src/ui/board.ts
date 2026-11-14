@@ -1,4 +1,4 @@
-import { type Grid, type Wave, PREVIEW_ID, applyGravity, cloneGrid, neighborSum, previewDrop } from '../core/rules';
+import { type Grid, type Tile, type Wave, PREVIEW_ID, applyGravity, cloneGrid, isStone, neighborSum, previewDrop } from '../core/rules';
 import type { DropOutcome, Game } from '../core/game';
 import { palette } from './theme';
 import { DEFAULT_THEME, moodFor, type Mood, type PieceArt, type ThemeWords } from '../themes';
@@ -9,7 +9,7 @@ import { warningWobble } from './warning';
 const BANNER_WORDS = ['', '', 'Nice', 'Great', 'Awesome', 'Wild', 'Unreal'];
 
 interface Vis { y: number; vy: number; fill: number; flash: number; need?: number; bump: number }
-interface PopFx { v: number; r: number; c: number; life: number }
+interface PopFx { tile: Tile; r: number; c: number; life: number }
 interface Particle { x: number; y: number; vx: number; vy: number; life: number; col: string; s: number }
 interface Geom { cell: number; x0: number; y0: number; bw: number; bh: number }
 
@@ -35,6 +35,8 @@ export class BoardView {
   nightLight = false;
   /** Tutorial guide: an arrow over the column to drop in. Null hides it. */
   guide: { col?: number } | null = null;
+  /** Hammer armed: tapping a piece smashes it; the drop preview is off. */
+  hammer = false;
   /** Swap animation progress, 1 → 0. */
   private swapFx = 0;
   private view: Grid;
@@ -46,6 +48,8 @@ export class BoardView {
   private shake = 0;
   /** Expanding rings where pieces clear. */
   private rings: { x: number; y: number; col: string; life: number }[] = [];
+  /** Bomb blasts: a big flash over the 3×3 area. */
+  private blasts: { x: number; y: number; life: number }[] = [];
   /** Board tint pulse during chains, 1 → 0. */
   private chainTint = 0;
   /** Time the rise warning started, or -1 when it isn't showing. */
@@ -78,6 +82,7 @@ export class BoardView {
     this.floatText = null;
     this.banner = null;
     this.rings = [];
+    this.blasts = [];
     this.chainTint = 0;
     this.warnSince = -1;
     this.hover = Math.min(this.hover, this.game.cols - 1);
@@ -108,6 +113,15 @@ export class BoardView {
     const rect = this.canvas.getBoundingClientRect();
     const g = this.geom();
     return Math.max(0, Math.min(this.game.cols - 1, Math.floor((clientX - rect.left - g.x0) / g.cell)));
+  }
+
+  /** Board cell under a client point (for the hammer), or null when off the board. */
+  cellAt(clientX: number, clientY: number): { r: number; c: number } | null {
+    const rect = this.canvas.getBoundingClientRect();
+    const g = this.geom();
+    const c = Math.floor((clientX - rect.left - g.x0) / g.cell);
+    const r = Math.floor((clientY - rect.top - g.y0) / g.cell);
+    return r >= 0 && r < this.game.rows && c >= 0 && c < this.game.cols ? { r, c } : null;
   }
 
   /** True when a client point is on the small "next" piece (tapping it swaps). */
@@ -146,12 +160,18 @@ export class BoardView {
 
   async play(out: DropOutcome): Promise<void> {
     this.busy = true;
-    const { tile, row, col } = out.placed;
-    this.view[row][col] = { ...tile };
-    this.vis.set(tile.id, { y: -1, vy: 0, fill: 0, flash: 0, bump: 0 });
-    this.sfx.drop();
-    haptics.tap();
-    await wait(200);
+    if (out.placed) {
+      const { tile, row, col } = out.placed;
+      this.view[row][col] = { ...tile };
+      this.vis.set(tile.id, { y: -1, vy: 0, fill: 0, flash: 0, bump: 0 });
+      this.sfx.drop();
+      haptics.tap();
+      await wait(200);
+    } else {
+      // Hammer: a hard knock, then the cascade.
+      this.bump(0.7);
+      haptics.thud();
+    }
     await this.playWaves(out.waves);
     if (out.rise) {
       const rows = this.game.rows;
@@ -182,13 +202,30 @@ export class BoardView {
         this.chainTint = 1;
       }
       await wait(wave.chain === 1 ? 140 : 320);
+      let blast = false;
       wave.popped.forEach((p, i) => {
         this.view[p.r][p.c] = null;
-        this.fx.push({ v: p.tile.v, r: p.r, c: p.c, life: 1 });
-        this.rings.push({ x: p.c + 0.5, y: p.r + 0.5, col: this.art.color(p.tile.v), life: 1 });
-        this.burst(p.r, p.c, p.tile.v);
+        this.fx.push({ tile: p.tile, r: p.r, c: p.c, life: 1 });
+        const stone = isStone(p.tile);
+        this.rings.push({ x: p.c + 0.5, y: p.r + 0.5, col: stone ? STONE_DUST : this.art.color(p.tile.v), life: 1 });
+        this.burst(p.r, p.c, stone ? STONE_DUST : this.art.color(p.tile.v));
+        if (p.tile.kind === 'bomb') {
+          blast = true;
+          this.blasts.push({ x: p.c + 0.5, y: p.r + 0.5, life: 1 });
+        }
         this.sfx.pop(wave.chain, i);
       });
+      // Ice next to a breaking piece cracks off one layer.
+      for (const t of wave.thawed) {
+        const v = this.view[t.r][t.c];
+        if (v) v.ice = t.tile.ice;
+        this.rings.push({ x: t.c + 0.5, y: t.r + 0.5, col: ICE_EDGE, life: 1 });
+        this.burst(t.r, t.c, ICE_EDGE);
+      }
+      if (blast) {
+        this.bump(1);
+        haptics.thud();
+      }
       this.cb.onScore(wave.points);
       const first = wave.popped[0];
       this.floatText = { s: `+${wave.points}`, r: first.r, c: first.c, life: 1 };
@@ -200,11 +237,11 @@ export class BoardView {
     }
   }
 
-  private burst(r: number, c: number, v: number): void {
+  private burst(r: number, c: number, col: string): void {
     for (let i = 0; i < 14; i++) {
       const a = Math.random() * Math.PI * 2;
       const sp = 0.04 + Math.random() * 0.09;
-      this.parts.push({ x: c + 0.5, y: r + 0.5, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 0.05, life: 1, col: this.art.color(v), s: 0.06 + Math.random() * 0.07 });
+      this.parts.push({ x: c + 0.5, y: r + 0.5, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 0.05, life: 1, col, s: 0.06 + Math.random() * 0.07 });
     }
   }
 
@@ -226,8 +263,8 @@ export class BoardView {
     ctx.save();
     ctx.translate(sx, sy);
 
-    const canPreview = !this.busy && !game.over && (this.mouse || this.pressing);
-    const pv = canPreview ? previewDrop(game.grid, this.hover, game.current) : null;
+    const canPreview = !this.busy && !game.over && !this.hammer && (this.mouse || this.pressing);
+    const pv = canPreview ? previewDrop(game.grid, this.hover, game.current, game.currentBomb) : null;
     // The free preview shows the drop's direct effect: the warmth each touching piece
     // would gain, which pieces clear right away, and which slide down after. The night
     // light adds the rest of the chain, step by step.
@@ -302,6 +339,16 @@ export class BoardView {
           vs.y += (r - vs.y) * Math.min(1, dt / 60);
           if (Math.abs(vs.y - r) < 0.01) vs.y = r;
         }
+        const wv = waveOf(tl.id);
+        if (isStone(tl)) {
+          // Stones never count down; they crumble when a piece next to them breaks.
+          vs.flash = Math.max(0, vs.flash - dt / 420);
+          drawStone(ctx, g.x0 + c * g.cell, g.y0 + vs.y * g.cell, g.cell, tl.id, {
+            glow: Math.max(vs.flash, wv === 0 ? 0.6 + 0.4 * pulse : wv > 0 ? 0.35 + 0.25 * pulse : 0),
+            badge: wv > 0 ? `×${wv + 1}` : null,
+          });
+          continue;
+        }
         const sum = neighborSum(this.view, r, c);
         const over = sum > tl.v;
         vs.fill += ((over ? 1 : sum / tl.v) - vs.fill) * Math.min(1, dt / 90);
@@ -311,7 +358,6 @@ export class BoardView {
         if (vs.need !== undefined && vs.need !== need) vs.bump = 1;
         vs.need = need;
         vs.bump = Math.max(0, vs.bump - dt / 380);
-        const wv = waveOf(tl.id);
         // Next to the previewed drop: show the warmth it would get, the new part glowing,
         // and a ring saying what happens (gold: clears, mint: warmer, red: too much).
         const touched = !!pvGrid && isNeighborOfPreview(r, c);
@@ -341,6 +387,9 @@ export class BoardView {
           glow: Math.max(vs.flash, wv === 0 ? 0.6 + 0.4 * pulse : wv > 0 ? 0.35 + 0.25 * pulse : 0),
           badge: wv > 0 ? `×${wv + 1}` : null,
           wobble: r === rows - 1 && !this.reduced ? warningWobble(warnAge, t, c) : 0,
+          bomb: tl.kind === 'bomb',
+          ice: tl.ice,
+          t,
         });
       }
     }
@@ -361,6 +410,8 @@ export class BoardView {
         pulse,
         glow: gw === 0 ? 0.6 + 0.4 * pulse : 0,
         badge: gw > 0 ? `×${gw + 1}` : null,
+        bomb: game.currentBomb,
+        t,
       });
       // Outline the landing spot so it is clear where the piece goes.
       ctx.save();
@@ -411,7 +462,26 @@ export class BoardView {
     for (const f of this.fx) {
       const x = g.x0 + f.c * g.cell;
       const y = g.y0 + f.r * g.cell;
-      this.art.drawClearing(ctx, x, y, g.cell, f.v, 1 - f.life, this.reduced);
+      if (isStone(f.tile)) drawStoneBreaking(ctx, x, y, g.cell, f.tile.id, 1 - f.life);
+      else this.art.drawClearing(ctx, x, y, g.cell, f.tile.v, 1 - f.life, this.reduced);
+    }
+    // Bomb blasts: a hot flash over the 3×3 area.
+    this.blasts = this.blasts.filter((b) => (b.life -= dt / 600) > 0);
+    for (const b of this.blasts) {
+      const k = 1 - b.life;
+      const half = g.cell * (1.1 + 0.5 * k);
+      const cx = g.x0 + b.x * g.cell;
+      const cy = g.y0 + b.y * g.cell;
+      ctx.save();
+      ctx.globalAlpha = b.life;
+      const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, half * 1.2);
+      grad.addColorStop(0, 'rgba(255,250,230,.95)');
+      grad.addColorStop(0.45, 'rgba(255,190,90,.7)');
+      grad.addColorStop(1, 'rgba(239,111,108,0)');
+      ctx.fillStyle = grad;
+      rrect(ctx, cx - half, cy - half, half * 2, half * 2, g.cell * 0.4);
+      ctx.fill();
+      ctx.restore();
     }
     // Clear rings: expand and fade, in the piece's color.
     this.rings = this.rings.filter((rg) => (rg.life -= dt / 520) > 0);
@@ -455,7 +525,15 @@ export class BoardView {
       const lerp = (a: number, b: number) => a + (b - a) * k;
       const lift = Math.sin(k * Math.PI) * g.cell * 0.35;
       this.art.draw(ctx, lerp(hx, nx), lerp(hy, ny) - lift, lerp(g.cell, ns), game.current, { ratio: 0, alpha: this.busy ? 0.45 : 1 });
+      if (game.currentBomb) drawBombBadge(ctx, lerp(hx, nx), lerp(hy, ny) - lift, lerp(g.cell, ns), t);
       this.art.draw(ctx, lerp(nx, hx), lerp(ny, hy) + lift, lerp(ns, g.cell), game.next, { ratio: 0, alpha: 0.8 });
+      if (game.nextBomb) drawBombBadge(ctx, lerp(nx, hx), lerp(ny, hy) + lift, lerp(ns, g.cell), t);
+      if (this.hammer) {
+        ctx.font = `800 ${g.cell * 0.3}px "Baloo 2", system-ui, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        outlinedText(ctx, 'Tap a piece to smash it', this.w / 2, hy - g.cell * 0.05, 5, palette.coral);
+      }
       ctx.fillStyle = palette.muted;
       ctx.font = `700 ${Math.max(10, g.cell * 0.17)}px Nunito, system-ui, sans-serif`;
       ctx.textBaseline = 'middle';
@@ -550,11 +628,13 @@ function neighborValues(g: Grid, r: number, c: number): number[] {
   const out: number[] = [];
   for (const [dr, dc] of NEIGHBORS) {
     const t = g[r + dr]?.[c + dc];
-    if (t) out.push(t.v);
+    if (t && t.v) out.push(t.v);
   }
   return out;
 }
 
+const STONE_DUST = '#a7abbd';
+const ICE_EDGE = '#cfeeff';
 const RING_WARM = '#8fd5b8';
 const RING_OVER = '#ff5a5f';
 const GLOW = '#ffd27a';
@@ -577,6 +657,10 @@ interface PieceTileOpts {
   cushion?: boolean;
   pulse?: number;
   bump?: number;
+  bomb?: boolean;
+  ice?: number;
+  /** Clock, for the bomb fuse spark. */
+  t?: number;
 }
 
 /** A piece plus the board's overlays: preview glow, cascade badge and clear flash. */
@@ -603,6 +687,8 @@ function drawPieceTile(ctx: CanvasRenderingContext2D, art: PieceArt, x: number, 
     ctx.stroke();
     ctx.restore();
   }
+  if (o.ice) drawIce(ctx, x + wobble, y, s);
+  if (o.bomb) drawBombBadge(ctx, x + wobble, y, s, o.t ?? 0);
   if (o.ring) {
     const p = o.ringPulse ?? 1;
     ctx.save();
@@ -698,4 +784,176 @@ function outlinedText(ctx: CanvasRenderingContext2D, s: string, x: number, y: nu
   ctx.strokeText(s, x, y);
   ctx.fillStyle = fill;
   ctx.fillText(s, x, y);
+}
+
+/* ---------- special tiles (shared by every world) ---------- */
+
+/** Small fixed jitter per stone so they don't all look the same. */
+function stoneShape(id: number): number[] {
+  let seed = (id * 2654435761) >>> 0;
+  return Array.from({ length: 9 }, () => {
+    seed = (seed * 1103515245 + 12345) >>> 0;
+    return 0.86 + ((seed >>> 8) % 1000) / 1000 * 0.2;
+  });
+}
+
+function stonePath(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, id: number): void {
+  const j = stoneShape(id);
+  ctx.beginPath();
+  for (let i = 0; i <= 9; i++) {
+    const a = (i / 9) * Math.PI * 2 - Math.PI / 2;
+    const rr = r * j[i % 9];
+    const px = cx + Math.cos(a) * rr;
+    const py = cy + Math.sin(a) * rr * 0.86;
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+}
+
+/** A gray boulder: no number, it only breaks when a neighbor breaks. */
+function drawStone(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, id: number, o: { glow?: number; badge?: string | null; alpha?: number }): void {
+  const cx = x + s / 2;
+  const cy = y + s * 0.53;
+  const r = s * 0.4;
+  const glow = o.glow ?? 0;
+  ctx.save();
+  ctx.globalAlpha *= o.alpha ?? 1;
+  if (glow > 0) {
+    rrect(ctx, x + 2, y + 2, s - 4, s - 4, s * 0.2);
+    ctx.fillStyle = `rgba(255,210,122,${0.16 + 0.14 * glow})`;
+    ctx.shadowColor = GLOW;
+    ctx.shadowBlur = 26 * glow;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+  stonePath(ctx, cx, cy, r, id);
+  const grad = ctx.createLinearGradient(cx - r, cy - r, cx + r, cy + r);
+  grad.addColorStop(0, '#b9bdcc');
+  grad.addColorStop(0.5, '#868b9f');
+  grad.addColorStop(1, '#4f5368');
+  ctx.fillStyle = grad;
+  ctx.fill();
+  ctx.lineWidth = Math.max(1.5, s * 0.03);
+  ctx.strokeStyle = '#33364a';
+  ctx.stroke();
+  // speckles and a chipped line
+  ctx.fillStyle = 'rgba(40,42,60,.35)';
+  for (const [dx, dy, rr] of [[-0.15, 0.1, 0.05], [0.14, -0.06, 0.04], [0.05, 0.2, 0.035], [-0.05, -0.18, 0.03]]) {
+    ctx.beginPath();
+    ctx.arc(cx + dx * s, cy + dy * s, rr * s, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.beginPath();
+  ctx.ellipse(cx - r * 0.35, cy - r * 0.45, r * 0.32, r * 0.12, -0.5, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255,255,255,.35)';
+  ctx.fill();
+  ctx.restore();
+  if (glow > 0) {
+    ctx.save();
+    rrect(ctx, x + 2, y + 2, s - 4, s - 4, s * 0.2);
+    ctx.shadowColor = GLOW;
+    ctx.shadowBlur = 18 * glow;
+    ctx.strokeStyle = `rgba(255,226,160,${0.6 + 0.4 * glow})`;
+    ctx.lineWidth = 3.5;
+    ctx.stroke();
+    ctx.restore();
+  }
+  if (o.badge) {
+    ctx.save();
+    const bx = x + s - s * 0.12;
+    const by = y + s * 0.14;
+    ctx.beginPath();
+    ctx.arc(bx, by, s * 0.17, 0, Math.PI * 2);
+    ctx.fillStyle = palette.coral;
+    ctx.fill();
+    ctx.fillStyle = palette.onCoral;
+    ctx.font = `800 ${s * 0.2}px "Baloo 2", system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(o.badge, bx, by + s * 0.01);
+    ctx.restore();
+  }
+}
+
+/** A stone crumbling: it splits into chunks that fall apart (k 0 → 1). */
+function drawStoneBreaking(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, id: number, k: number): void {
+  const cx = x + s / 2;
+  const cy = y + s * 0.53;
+  ctx.save();
+  ctx.globalAlpha = Math.max(0, 1 - k * 1.1);
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2 + 0.7;
+    const d = k * s * 0.35;
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, s * 0.5, a - Math.PI / 4, a + Math.PI / 4);
+    ctx.closePath();
+    ctx.clip();
+    ctx.translate(Math.cos(a) * d, Math.sin(a) * d + k * k * s * 0.4);
+    drawStone(ctx, x, y, s, id, {});
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+/** A frozen piece: a block of ice over it. */
+function drawIce(ctx: CanvasRenderingContext2D, x: number, y: number, s: number): void {
+  ctx.save();
+  rrect(ctx, x + s * 0.06, y + s * 0.06, s * 0.88, s * 0.88, s * 0.16);
+  ctx.fillStyle = 'rgba(190,232,255,.38)';
+  ctx.fill();
+  ctx.lineWidth = Math.max(2, s * 0.04);
+  ctx.strokeStyle = 'rgba(225,246,255,.95)';
+  ctx.shadowColor = '#bfe8ff';
+  ctx.shadowBlur = 8;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = 'rgba(255,255,255,.75)';
+  ctx.lineWidth = Math.max(1.5, s * 0.03);
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(x + s * 0.18, y + s * 0.34);
+  ctx.lineTo(x + s * 0.34, y + s * 0.18);
+  ctx.moveTo(x + s * 0.18, y + s * 0.5);
+  ctx.lineTo(x + s * 0.5, y + s * 0.18);
+  ctx.moveTo(x + s * 0.66, y + s * 0.84);
+  ctx.lineTo(x + s * 0.84, y + s * 0.66);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** A bomb badge in the piece's corner: a round bomb with a sparking fuse. */
+function drawBombBadge(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, t: number): void {
+  const bx = x + s * 0.8;
+  const by = y + s * 0.8;
+  const r = s * 0.15;
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(bx, by, r, 0, Math.PI * 2);
+  ctx.fillStyle = '#23202f';
+  ctx.fill();
+  ctx.lineWidth = Math.max(1.5, s * 0.025);
+  ctx.strokeStyle = '#ffd27a';
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(bx - r * 0.35, by - r * 0.35, r * 0.25, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255,255,255,.5)';
+  ctx.fill();
+  // fuse
+  ctx.beginPath();
+  ctx.moveTo(bx + r * 0.5, by - r * 0.8);
+  ctx.quadraticCurveTo(bx + r * 0.9, by - r * 1.6, bx + r * 1.3, by - r * 1.4);
+  ctx.strokeStyle = '#d9c8a6';
+  ctx.lineWidth = Math.max(1.5, s * 0.025);
+  ctx.stroke();
+  const sp = 0.6 + 0.4 * Math.sin(t / 60);
+  ctx.beginPath();
+  ctx.arc(bx + r * 1.3, by - r * 1.4, r * 0.35 * sp + r * 0.15, 0, Math.PI * 2);
+  ctx.fillStyle = '#ffd27a';
+  ctx.shadowColor = '#ff9a3c';
+  ctx.shadowBlur = 8;
+  ctx.fill();
+  ctx.restore();
 }

@@ -564,3 +564,52 @@ body[data-art='gems'] #stars {
     box-shadow: 0 0 18px rgba(255, 210, 122, 0.8);
   }
 }
+
+/* ---------- power-ups ---------- */
+/* Four tools fit a phone row: icon and name stacked, count in the corner. */
+.btn.tool {
+  position: relative;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 4px 6px;
+  font-size: 0.8rem;
+  min-width: 0;
+}
+.btn.tool b {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  min-width: 18px;
+  font-size: 0.72rem;
+}
+#hammer[aria-pressed='true'] {
+  background: #ef6f6c;
+  color: #2a0a0a;
+  border-color: transparent;
+  box-shadow: 0 0 18px rgba(239, 111, 108, 0.6);
+}
+.pick-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin: 10px 0 14px;
+}
+.pick-row button {
+  width: 54px;
+  height: 64px;
+  padding: 4px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+  font: 800 0.95rem 'Baloo 2', system-ui, sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+}
+.pick-row img {
+  width: 40px;
+  height: 40px;
+}

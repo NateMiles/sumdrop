@@ -79,6 +79,14 @@
             <button class="btn hot" id="intro-play" type="button">Play</button>
           </div>
         </div>
+        <div class="overlay" id="picker" hidden>
+          <div class="card">
+            <h2>Pick your piece</h2>
+            <p>The piece in your hand becomes the one you tap.</p>
+            <div class="pick-row" id="pick-row"></div>
+            <button class="btn" id="pick-cancel" type="button">Cancel</button>
+          </div>
+        </div>
         <div class="overlay" id="over" hidden>
           <div class="card">
             <div class="stars-big" id="over-stars"></div>
@@ -100,6 +108,14 @@
         <button class="btn tool" id="night" type="button" aria-pressed="false">
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" fill="currentColor"/></svg>
           <span id="night-label">Night light</span> <b id="night-count">3</b>
+        </button>
+        <button class="btn tool" id="hammer" type="button" aria-pressed="false">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 9l5-5 4 1 3 3-2 2-3-1-1 1 7 7-2 2-7-7-1 1z" fill="currentColor"/></svg>
+          <span>Hammer</span> <b id="hammer-count">2</b>
+        </button>
+        <button class="btn tool" id="pick" type="button">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 2l3 6 6 1-4.5 4.5L18 20l-6-3-6 3 1.5-6.5L3 9l6-1z" fill="currentColor"/></svg>
+          <span>Pick</span> <b id="pick-count">1</b>
         </button>
       </div>
       <p class="rule" id="rule"></p>

@@ -14,7 +14,7 @@ import {
   spawnValue,
   PREVIEW_ID,
 } from '../src/core/rules';
-import { Game } from '../src/core/game';
+import { Game, parseCell } from '../src/core/game';
 
 let id = 100;
 /** Builds a grid from bottom-aligned rows of digits; '.' is empty. */
@@ -186,5 +186,63 @@ describe('Game', () => {
     const game = new Game(5);
     for (let r = 0; r < ROWS; r++) game.grid[r][0] = { id: 9000 + r, v: 6 };
     expect(game.drop(0)).toEqual({ kind: 'blocked' });
+  });
+});
+
+describe('special tiles', () => {
+  const special = (rows: string[]): Grid => {
+    const g = emptyGrid();
+    const top = ROWS - rows.length;
+    rows.forEach((line, i) =>
+      [...line].forEach((ch, c) => {
+        const t = parseCell(ch);
+        if (t) g[top + i][c] = { id: id++, ...t };
+      }),
+    );
+    return g;
+  };
+
+  it('stones give nothing, never pop on their own, and crumble next to a break', () => {
+    const g = special(['#.....', '11#...']);
+    // The two 1s pop; the stone above the left one... is not adjacent; the one to the right is.
+    const waves = resolveCascade(g);
+    expect(waves[0].popped.map((p) => p.tile.kind ?? p.tile.v)).toEqual(['stone', 1, 1, 'stone']);
+    expect(g.flat().filter(Boolean)).toHaveLength(0);
+    // A lone stone stays put.
+    expect(findPops(special(['#.....']))).toEqual([]);
+  });
+
+  it('a frozen piece gives sparks but cannot break until a neighbor break melts it', () => {
+    const g = special(['a1....']);
+    // The frozen 1 is exactly full but frozen; the plain 1 next to it is exactly full and pops.
+    const waves = resolveCascade(g);
+    expect(waves[0].popped).toHaveLength(1);
+    expect(waves[0].thawed).toHaveLength(1);
+    expect(g[ROWS - 1][0]).toMatchObject({ v: 1, ice: 0 });
+  });
+
+  it('a bomb breaks all 8 cells around it, including stones and ice, and sets off bombs', () => {
+    const g = special(['3#....', '#B....', 'A1#...']);
+    const waves = resolveCascade(g);
+    // Bomb A (1) at the bottom left is exactly full (1 from its right) and blasts its 3x3,
+    // which sets off bomb B above it, which takes the top row.
+    expect(waves[0].popped).toHaveLength(7);
+    expect(g.flat().filter(Boolean)).toHaveLength(0);
+  });
+
+  it('a hammer smash breaks one piece and starts a cascade, counting as step 1', async () => {
+    const { smashCell } = await import('../src/core/rules');
+    const g = special(['1.....', '3#....']);
+    const waves = smashCell(g, ROWS - 1, 0);
+    expect(waves[0].popped.map((p) => p.tile.kind ?? p.tile.v)).toEqual([3, 'stone']);
+    expect(g[ROWS - 1][0]).toMatchObject({ v: 1 });
+  });
+
+  it('stone and ice goals track what is left', async () => {
+    const { goalMet, goalProgress } = await import('../src/core/level');
+    const game = new Game(1, { board: ['#a', '24'], cols: 2, rows: 3, rise: null, queue: [1] });
+    expect(goalProgress({ kind: 'stones' }, game)).toEqual({ have: 0, need: 1 });
+    expect(goalProgress({ kind: 'ice' }, game)).toEqual({ have: 0, need: 1 });
+    expect(goalMet({ kind: 'stones' }, game)).toBe(false);
   });
 });

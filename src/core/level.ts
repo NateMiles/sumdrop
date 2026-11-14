@@ -9,7 +9,11 @@ export type Goal =
   /** Make a chain reaction at least this long. */
   | { kind: 'chain'; length: number }
   /** Clear every piece on the board. */
-  | { kind: 'clear' };
+  | { kind: 'clear' }
+  /** Break every stone. */
+  | { kind: 'stones' }
+  /** Melt all the ice. */
+  | { kind: 'ice' };
 
 /** One step of a tutorial: what to say, and where to point. */
 export interface Tip {
@@ -41,6 +45,10 @@ export interface LevelDef {
   maxValue?: number;
   /** Rising rows. Omitted means no rising. */
   rise?: { first: number; min: number };
+  /** Chance a random piece in hand is a bomb. */
+  bombs?: number;
+  /** Chance a cell of a rising row is a stone. */
+  stones?: number;
 }
 
 /** The tip for the drop the player is about to make, if any. */
@@ -61,6 +69,10 @@ export function goalMet(goal: Goal, game: Game): boolean {
       return game.longestChain >= goal.length;
     case 'clear':
       return game.grid.every((row) => row.every((t) => !t));
+    case 'stones':
+      return game.stonesLeft === 0;
+    case 'ice':
+      return game.iceLeft === 0;
   }
 }
 
@@ -77,6 +89,10 @@ export function goalProgress(goal: Goal, game: Game): { have: number; need: numb
       const left = game.grid.reduce((n, row) => n + row.filter(Boolean).length, 0);
       return { have: game.slept, need: game.slept + left };
     }
+    case 'stones':
+      return { have: game.stonesBroken, need: game.stonesBroken + game.stonesLeft };
+    case 'ice':
+      return { have: game.thawed, need: game.thawed + game.iceLeft };
   }
 }
 
@@ -102,6 +118,10 @@ export function goalText(goal: Goal, w: GoalWords = NEUTRAL_WORDS): string {
       return `Make a ×${goal.length} chain`;
     case 'clear':
       return `${w.clearVerb} all the ${w.pieces}`;
+    case 'stones':
+      return 'Break every stone';
+    case 'ice':
+      return 'Melt all the ice';
   }
 }
 
@@ -115,6 +135,8 @@ export function levelConfig(def: LevelDef): GameConfig {
     maxValue: def.maxValue,
     rise: def.rise ?? null,
     maxDrops: def.drops,
+    bombs: def.bombs,
+    stones: def.stones,
     goalMet: (g) => goalMet(def.goal, g),
   };
 }

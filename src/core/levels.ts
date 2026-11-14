@@ -131,13 +131,15 @@ export const LEVELS: LevelDef[] = [
   {
     id: 'g3',
     world: 'grotto',
-    name: 'Lens cave',
-    goal: { kind: 'sleep', count: 5, size: 2 },
-    board: ['.4....', '.14.4.', '141423'],
+    name: 'Rock garden',
+    coach: 'New: stones. They never count down. Break a gem right next to a stone and it crumbles too.',
+    goal: { kind: 'stones' },
+    board: ['#....#', '4.##.4', '3#21#3'],
     maxValue: 4,
-    drops: 22,
-    stars: [1250, 1350],
+    drops: 14,
+    stars: [920, 1000],
   },
+
   {
     id: 'g4',
     world: 'grotto',
@@ -151,13 +153,15 @@ export const LEVELS: LevelDef[] = [
   {
     id: 'g5',
     world: 'grotto',
-    name: 'Lantern light',
-    goal: { kind: 'score', target: 900 },
-    board: ['..3..4', '2.14.1', '114113'],
+    name: 'Hammer time',
+    coach: 'New: Hammer. Tap it, then tap any piece to smash it. It doesn\'t use a drop, and you get 2.',
+    goal: { kind: 'stones' },
+    board: ['#....#', '#....#', '4#..#4', '34##13'],
     maxValue: 4,
-    drops: 24,
-    stars: [1250, 1500],
+    drops: 16,
+    stars: [920, 1020],
   },
+
   {
     id: 'g6',
     world: 'grotto',
@@ -173,35 +177,40 @@ export const LEVELS: LevelDef[] = [
   {
     id: 'g7',
     world: 'grotto',
-    name: 'Four corners',
-    goal: { kind: 'sleep', count: 4, size: 4 },
-    board: ['4..5.3', '14.4.2', '413153'],
-    maxValue: 5,
-    rise: { first: 10, min: 8 },
-    drops: 20,
-    stars: [1300, 1400],
+    name: 'Frozen pool',
+    coach: 'New: ice. A frozen gem still gives sparks but can\'t break. Break a gem next to it to melt the ice.',
+    goal: { kind: 'ice' },
+    board: ['.a..b.', '.1..2.', 'b2..2b'],
+    maxValue: 4,
+    drops: 8,
+    stars: [740, 760],
   },
+
   {
     id: 'g8',
     world: 'grotto',
     name: 'Clean sweep',
+    coach: 'New: Pick. Once per level, choose exactly the gem you need.',
     goal: { kind: 'clear' },
     board: ['..2...', '.13.3.', '213321'],
     maxValue: 3,
     drops: 14,
     stars: [900, 1050],
   },
+
   {
     id: 'g9',
     world: 'grotto',
-    name: 'Five points',
-    goal: { kind: 'sleep', count: 4, size: 5 },
-    board: ['2..4..', '5..3..', '2..5.2', '513151'],
+    name: 'Blasting cap',
+    coach: 'New: bomb gems. When one breaks, everything around it breaks too, stones and ice included. Some gems you drop are bombs.',
+    goal: { kind: 'stones' },
+    board: ['#....#', '#.##.#', '1B##D3'],
     maxValue: 5,
-    rise: { first: 10, min: 7 },
-    drops: 26,
-    stars: [1550, 1700],
+    bombs: 0.12,
+    drops: 16,
+    stars: [950, 1040],
   },
+
   {
     id: 'g10',
     world: 'grotto',
@@ -216,26 +225,31 @@ export const LEVELS: LevelDef[] = [
   {
     id: 'g11',
     world: 'grotto',
-    name: 'Hexagon hall',
-    coach: 'Hexagons are the biggest gems. They give 6 sparks to every gem they touch, so drop them next to big needs.',
-    goal: { kind: 'sleep', count: 3, size: 6 },
-    board: ['4.....', '3....5', '6.2.42', '131314'],
+    name: 'Ice and stone',
+    coach: 'Hexagons give 6 sparks to every gem they touch. Watch the rising rows: some bring stones.',
+    goal: { kind: 'ice' },
+    board: ['a....d', '#a..a#', '1#21#2'],
     maxValue: 6,
-    rise: { first: 10, min: 7 },
-    drops: 27,
-    stars: [1700, 1900],
+    rise: { first: 9, min: 7 },
+    stones: 0.15,
+    drops: 14,
+    stars: [880, 1000],
   },
+
   {
     id: 'g12',
     world: 'grotto',
     name: 'Heart of the cave',
     goal: { kind: 'score', target: 1800 },
-    board: ['.2...2', '.1.2.1', '.4.1.5', '314232'],
+    board: ['..#...', '.6#3..', '5B5#F3', '26#426'],
     maxValue: 6,
     rise: { first: 9, min: 6 },
+    bombs: 0.08,
+    stones: 0.1,
     drops: 34,
     stars: [2350, 2750],
   },
+
 
   /* ---------- Cat Nap Alley (world 2: bigger cats, faster rising) ---------- */
   {
@@ -280,6 +294,7 @@ export const LEVELS: LevelDef[] = [
     board: ['3.4...', '2.1...', '2.3.3.', '251412'],
     maxValue: 6,
     rise: { first: 9, min: 6 },
+    bombs: 0.08,
     drops: 28,
     stars: [1900, 2100],
   },
@@ -303,6 +318,7 @@ export const LEVELS: LevelDef[] = [
     board: ['.6.4..', '.3.3.3', '13.5.2', '636151'],
     maxValue: 6,
     rise: { first: 8, min: 6 },
+    stones: 0.12,
     drops: 30,
     stars: [2100, 2300],
   },
@@ -314,6 +330,7 @@ export const LEVELS: LevelDef[] = [
     board: ['....5.', '.1..24', '.61161', '531413'],
     maxValue: 6,
     rise: { first: 8, min: 6 },
+    bombs: 0.1,
     drops: 36,
     stars: [2600, 2950],
   },
@@ -329,6 +346,16 @@ export const LEVELS: LevelDef[] = [
     stars: [2850, 3250],
   },
 ];
+
+/** Power-ups unlock as you go: each is available from this level on (always in Endless). */
+export const TOOL_UNLOCK = { lantern: 'g2', hammer: 'g5', pick: 'g8' } as const;
+export type Tool = keyof typeof TOOL_UNLOCK;
+
+export function toolAvailable(tool: Tool, def?: LevelDef): boolean {
+  if (!def) return true;
+  if (def.world === 'tutorial') return false;
+  return LEVELS.indexOf(def) >= LEVELS.findIndex((l) => l.id === TOOL_UNLOCK[tool]);
+}
 
 export const levelById = (id: string): LevelDef | undefined => LEVELS.find((l) => l.id === id);
 
