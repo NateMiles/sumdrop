@@ -64,7 +64,9 @@ function showScreen(which: 'map' | 'play'): void {
   if (which === 'play') requestAnimationFrame(() => board.resize());
 }
 
-const unlocked = (i: number) => i === 0 || (progress[LEVELS[i - 1].id] ?? 0) > 0;
+/** Testing switch: every level is playable without beating the one before. Set to false before release. */
+const UNLOCK_ALL_LEVELS = true;
+const unlocked = (i: number) => UNLOCK_ALL_LEVELS || i === 0 || (progress[LEVELS[i - 1].id] ?? 0) > 0;
 
 function renderMap(): void {
   const total = Object.values(progress).reduce((a, b) => a + b, 0);
