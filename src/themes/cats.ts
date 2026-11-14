@@ -19,6 +19,7 @@ class CatArt implements PieceArt {
       cushion: o.base,
       alpha: o.alpha,
     });
+    if (o.number !== false) drawNeedBubble(ctx, x, y, size, v - (o.received ?? 0), o);
   }
 
   drawClearing(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, v: number, k: number, reduced: boolean): void {
@@ -53,9 +54,35 @@ export const catTheme: Theme = {
     notCleared: 'still awake',
     unit: 'heart',
     rule:
-      '<b>Fill every heart.</b> Each cat touching a cat fills as many of its hearts as it has. All hearts filled, it falls asleep. Too many and the hearts turn red. Same-colored cats nap together.',
+      '<b>Count every cat down to 0.</b> The bubble shows the hearts a cat still needs. Each cat gives its touching cats as many hearts as it has. At exactly 0 it falls asleep. Below 0 it is too warm and waits for a neighbor to leave. Same-colored cats nap together.',
     mouseHint: 'Hover a column to preview where your cat lands.',
     boost: 'Night light',
     winTitle: 'Sweet dreams!',
   },
 };
+
+/**
+ * Hearts still needed, in a bubble on the cat's corner: it counts down to 0 (asleep).
+ * Below 0 the cat is too warm and the bubble turns red.
+ */
+function drawNeedBubble(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, need: number, o: PieceDrawOpts): void {
+  const fresh = o.receivedBefore !== undefined && o.receivedBefore !== o.received;
+  const r = size * 0.15 * (1 + 0.35 * (o.bump ?? 0));
+  const cx = x + size * 0.83;
+  const cy = y + size * 0.17;
+  ctx.save();
+  ctx.globalAlpha *= o.alpha ?? 1;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fillStyle = need < 0 ? '#ef3f4c' : need === 0 || fresh ? '#ffd27a' : '#fbf3ea';
+  ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = '#1d1838';
+  ctx.stroke();
+  ctx.fillStyle = need < 0 ? '#fff' : '#1d1838';
+  ctx.font = `800 ${r * 1.35}px "Baloo 2", system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(need < 0 ? `\u2212${-need}` : String(need), cx, cy + r * 0.08);
+  ctx.restore();
+}

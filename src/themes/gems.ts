@@ -1,10 +1,14 @@
 import type { Mood, PieceArt, PieceDrawOpts, Theme } from './types';
 
 /**
- * Gem Grotto: the first world. Each gem's number of sides is its size, so the
- * shape itself says how much it needs: a round gem is 1, a lens 2, a triangle
- * 3, a square 4, a pentagon 5 and a hexagon 6. Bigger gems are also drawn bigger.
- * Need is shown as sparks on the gem's stand; a full gem shatters into light.
+ * Gem Grotto: the first world. Each gem's number of sides is its size, and that is
+ * how many sparks it gives to every gem it touches (a round gem is 1, a lens 2, a
+ * triangle 3, a square 4, a pentagon 5 and a hexagon 6).
+ *
+ * The gem itself shows its state, so the board reads at a glance:
+ * - the big number counts down the sparks it still needs; at exactly 0 it breaks
+ * - cracks spread and glow as it fills, so a nearly full gem looks ready to burst
+ * - below 0 it has too many: it turns dark red and is stuck until a neighbor leaves
  */
 
 interface Cut {
@@ -26,11 +30,11 @@ const CUTS: Record<number, Cut> = {
 
 const SPARK_LIT = '#fff6d6';
 const SPARK_NEW = '#ffd27a';
-const SPARK_HOT = '#ff5a5f';
-const SPARK_DARK = 'rgba(10,20,40,.55)';
 
-/** Gem radius as a share of the cell: the hexagon is about twice the round gem. */
-const gemRadius = (v: number) => 0.2 + (v - 1) * 0.034;
+const OVER_RED = '#ff4d5a';
+
+/** Gem radius as a share of the cell: big enough to hold its number, bigger gems bigger. */
+const gemRadius = (v: number) => 0.3 + (v - 1) * 0.026;
 
 /** Outline points of a gem with `v` sides, centered at 0,0 with radius r. */
 function outline(v: number, r: number): [number, number][] {
@@ -67,25 +71,74 @@ function path(ctx: CanvasRenderingContext2D, pts: [number, number][]): void {
   ctx.closePath();
 }
 
-/** Draws one gem centered at 0,0 in a 100-unit cell. `glow` 0..1 brightens it as it fills. */
-function drawGem(ctx: CanvasRenderingContext2D, v: number, glow: number, mood: Mood): void {
+interface GemLook {
+  /** 0..1 how full: drives glow and how far the cracks have spread. */
+  fill: number;
+  mood: Mood;
+  /** 0..1 pulse for a gem about to break. */
+  pulse?: number;
+}
+
+/** Crack lines for a gem, from the rim toward the middle. Fixed per size so they don't flicker. */
+const CRACKS = new Map<number, [number, number][][]>();
+function cracksFor(v: number, r: number): [number, number][][] {
+  let out = CRACKS.get(v);
+  if (out) return out;
+  let seed = v * 9301 + 49297;
+  const rnd = () => ((seed = (seed * 9301 + 49297) % 233280) / 233280);
+  out = Array.from({ length: 7 }, (_, i) => {
+    const a = (i / 7) * Math.PI * 2 + 0.4 + rnd() * 0.5;
+    const pts: [number, number][] = [];
+    const steps = 3;
+    for (let k = 0; k <= steps; k++) {
+      const d = r * (1.05 - (k / steps) * (0.55 + rnd() * 0.1));
+      const j = k === 0 ? 0 : (rnd() - 0.5) * 0.5;
+      pts.push([Math.cos(a + j) * d, Math.sin(a + j) * d]);
+    }
+    // a short branch off the middle
+    const m = pts[1];
+    const ba = a + (rnd() > 0.5 ? 0.9 : -0.9);
+    pts.push([m[0] + Math.cos(ba) * r * 0.22, m[1] + Math.sin(ba) * r * 0.22]);
+    return pts;
+  });
+  // Spread the order so the first cracks are on opposite sides.
+  out = [0, 4, 2, 6, 1, 5, 3].map((i) => out![i]);
+  CRACKS.set(v, out);
+  return out;
+}
+
+/** Draws one gem centered at 0,0 in a 100-unit cell. */
+function drawGem(ctx: CanvasRenderingContext2D, v: number, look: GemLook): void {
+  const { mood } = look;
+  const glow = Math.min(1, Math.max(0, look.fill));
+  const over = mood === 'over';
   const c = CUTS[v];
   const r = gemRadius(v) * 100;
   const pts = outline(v, r);
   const facets = v <= 2 ? 1 : v;
+  const pulse = look.pulse ?? 0.5;
 
-  // Glow behind the gem grows as it fills; a full gem blazes.
-  if (glow > 0.05 || mood === 'done') {
+  // Glow behind the gem grows as it fills; a nearly full gem throbs.
+  if (!over && (glow > 0.05 || mood === 'done')) {
     ctx.save();
-    ctx.shadowColor = mood === 'over' ? SPARK_HOT : c.light;
-    ctx.shadowBlur = 6 + 22 * (mood === 'done' ? 1 : glow);
+    ctx.shadowColor = c.light;
+    ctx.shadowBlur = 4 + 20 * glow + (mood === 'close' ? 10 * pulse : 0);
     path(ctx, pts);
     ctx.fillStyle = c.base;
     ctx.fill();
     ctx.restore();
   }
+  if (over) {
+    ctx.save();
+    ctx.shadowColor = OVER_RED;
+    ctx.shadowBlur = 14;
+    path(ctx, pts);
+    ctx.fillStyle = OVER_RED;
+    ctx.fill();
+    ctx.restore();
+  }
 
-  // Body: diagonal gradient from light to dark.
+  // Body: diagonal gradient from light to dark. Empty gems are a little dull.
   const grad = ctx.createLinearGradient(-r, -r, r, r);
   grad.addColorStop(0, c.light);
   grad.addColorStop(0.45, c.base);
@@ -93,17 +146,14 @@ function drawGem(ctx: CanvasRenderingContext2D, v: number, glow: number, mood: M
   path(ctx, pts);
   ctx.fillStyle = grad;
   ctx.fill();
-  ctx.lineWidth = 2.2;
-  ctx.strokeStyle = c.dark;
-  ctx.stroke();
 
-  // Facets: an inner "table" and lines out to each corner.
-  const inner = outline(v, r * 0.52).map(([x, y]) => [x, y - r * 0.06] as [number, number]);
   ctx.save();
   path(ctx, pts);
   ctx.clip();
+  // Facets: an inner "table" and lines out to each corner.
+  const inner = outline(v, r * 0.56).map(([x, y]) => [x, y - r * 0.04] as [number, number]);
   if (facets > 1) {
-    ctx.strokeStyle = 'rgba(255,255,255,.28)';
+    ctx.strokeStyle = 'rgba(255,255,255,.22)';
     ctx.lineWidth = 1.4;
     for (let i = 0; i < pts.length; i++) {
       ctx.beginPath();
@@ -113,26 +163,84 @@ function drawGem(ctx: CanvasRenderingContext2D, v: number, glow: number, mood: M
     }
   }
   path(ctx, inner);
-  ctx.fillStyle = `rgba(255,255,255,${0.16 + 0.3 * glow})`;
+  ctx.fillStyle = `rgba(255,255,255,${0.1 + 0.22 * glow})`;
   ctx.fill();
   // Shine: a soft diagonal streak.
   ctx.beginPath();
-  ctx.ellipse(-r * 0.32, -r * 0.38, r * 0.34, r * 0.13, -0.6, 0, Math.PI * 2);
-  ctx.fillStyle = 'rgba(255,255,255,.55)';
+  ctx.ellipse(-r * 0.4, -r * 0.46, r * 0.3, r * 0.11, -0.6, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255,255,255,.5)';
   ctx.fill();
-  if (mood === 'over') {
-    // Too much: a red wash and a crack.
-    ctx.fillStyle = 'rgba(255,60,70,.28)';
-    ctx.fillRect(-r * 1.3, -r * 1.3, r * 2.6, r * 2.6);
-    ctx.strokeStyle = 'rgba(40,0,10,.55)';
-    ctx.lineWidth = 1.6;
-    ctx.beginPath();
-    ctx.moveTo(r * 0.1, -r * 0.7);
-    ctx.lineTo(-r * 0.12, -r * 0.15);
-    ctx.lineTo(r * 0.16, r * 0.1);
-    ctx.lineTo(-r * 0.05, r * 0.6);
-    ctx.stroke();
+  if (glow < 0.01 && !over) {
+    // Nothing yet: a touch dull, so filling gems stand out.
+    path(ctx, pts);
+    ctx.fillStyle = 'rgba(14,20,44,.18)';
+    ctx.fill();
   }
+  if (over) {
+    // Too many: dark and smoky red. Stuck until a neighbor leaves.
+    path(ctx, pts);
+    ctx.fillStyle = 'rgba(70,0,18,.55)';
+    ctx.fill();
+  }
+
+  // Cracks spread as the gem fills: light leaks through them.
+  const cracks = cracksFor(v, r);
+  const shown = over ? cracks.length : glow <= 0 ? 0 : Math.max(1, Math.ceil(glow * cracks.length));
+  if (shown) {
+    const hot = mood === 'close' || mood === 'done';
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (let i = 0; i < shown; i++) {
+      const cr = cracks[i];
+      ctx.beginPath();
+      ctx.moveTo(cr[0][0], cr[0][1]);
+      for (let k = 1; k < cr.length - 1; k++) ctx.lineTo(cr[k][0], cr[k][1]);
+      ctx.moveTo(cr[1][0], cr[1][1]);
+      ctx.lineTo(cr[cr.length - 1][0], cr[cr.length - 1][1]);
+      if (over) {
+        ctx.strokeStyle = 'rgba(20,0,6,.6)';
+        ctx.lineWidth = 2;
+        ctx.shadowBlur = 0;
+      } else {
+        ctx.strokeStyle = hot ? `rgba(255,248,220,${0.8 + 0.2 * pulse})` : 'rgba(255,250,235,.85)';
+        ctx.shadowColor = hot ? SPARK_NEW : c.light;
+        ctx.shadowBlur = hot ? 6 + 8 * pulse : 3;
+        ctx.lineWidth = hot ? 3 : 2.2;
+      }
+      ctx.stroke();
+    }
+    ctx.shadowBlur = 0;
+  }
+  ctx.restore();
+
+  path(ctx, pts);
+  ctx.lineWidth = over ? 3.4 : 2.2;
+  ctx.strokeStyle = over ? OVER_RED : c.dark;
+  ctx.stroke();
+}
+
+/**
+ * The need number in the middle of the gem: sparks still needed. 0 is gold (it breaks),
+ * below 0 is red (too many). `fresh` marks a number that just changed in a preview.
+ */
+function drawNeed(ctx: CanvasRenderingContext2D, v: number, need: number, fresh: boolean, bump: number): void {
+  const size = (v === 1 ? 32 : v === 2 ? 34 : 38) * (1 + 0.45 * bump);
+  const text = need < 0 ? `\u2212${-need}` : String(need);
+  ctx.save();
+  ctx.font = `800 ${size}px "Baloo 2", system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const y = (v === 3 ? 7 : 2) + size * 0.04;
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = 7;
+  ctx.strokeStyle = need < 0 ? '#3a0010' : 'rgba(16,14,40,.85)';
+  ctx.strokeText(text, 0, y);
+  ctx.fillStyle = need < 0 ? '#ffb3b8' : need === 0 ? SPARK_NEW : fresh ? SPARK_NEW : '#ffffff';
+  if (need === 0 || fresh) {
+    ctx.shadowColor = SPARK_NEW;
+    ctx.shadowBlur = 10;
+  }
+  ctx.fillText(text, 0, y);
   ctx.restore();
 }
 
@@ -159,62 +267,15 @@ class GemArt implements PieceArt {
     const mood = o.mood ?? 'idle';
     ctx.save();
     ctx.globalAlpha *= o.alpha ?? 1;
-    ctx.translate(x, y);
+    ctx.translate(x + size / 2, y + size / 2);
     ctx.scale(size / 100, size / 100);
-
-    if (o.base !== false) this.drawStand(ctx, v, o);
-
-    ctx.save();
-    ctx.translate(50, 44);
-    drawGem(ctx, v, Math.min(1, Math.max(0, ratio)), mood);
-    ctx.restore();
-    ctx.restore();
-  }
-
-  /** The stand under the gem holds its sparks: lit for received, dark for still needed. */
-  private drawStand(ctx: CanvasRenderingContext2D, v: number, o: PieceDrawOpts): void {
-    const c = CUTS[v];
-    ctx.fillStyle = 'rgba(10,20,40,.55)';
-    roundRect(ctx, 8, 84, 84, 15, 7.5);
-    ctx.fill();
-    ctx.strokeStyle = c.base;
-    ctx.lineWidth = 1.6;
-    ctx.stroke();
-    const w = o.received;
-    const hot = w !== undefined && w > v;
-    const gap = v >= 6 ? 13.2 : 14.8;
-    for (let i = 0; i < v; i++) {
-      const lit = w === undefined || hot || i < w;
-      const isNew = !hot && w !== undefined && o.receivedBefore !== undefined && i >= o.receivedBefore && i < w;
-      const sx = 50 + (i - (v - 1) / 2) * gap;
-      ctx.save();
-      sparkPath(ctx, sx, 91.5, v >= 6 ? 6.4 : 7);
-      if (hot) {
-        ctx.fillStyle = SPARK_HOT;
-        ctx.shadowColor = SPARK_HOT;
-        ctx.shadowBlur = 6;
-      } else if (isNew) {
-        ctx.fillStyle = SPARK_NEW;
-        ctx.shadowColor = SPARK_NEW;
-        ctx.shadowBlur = 9;
-      } else if (lit) {
-        ctx.fillStyle = w === undefined ? c.light : SPARK_LIT;
-        if (w !== undefined) {
-          ctx.shadowColor = SPARK_LIT;
-          ctx.shadowBlur = 5;
-        }
-      } else {
-        ctx.fillStyle = SPARK_DARK;
-      }
-      ctx.fill();
-      if (!lit) {
-        ctx.shadowBlur = 0;
-        ctx.strokeStyle = 'rgba(255,255,255,.75)';
-        ctx.lineWidth = 1;
-        ctx.stroke();
-      }
-      ctx.restore();
+    drawGem(ctx, v, { fill: ratio, mood, pulse: o.pulse });
+    if (o.number !== false) {
+      const need = v - (o.received ?? 0);
+      const fresh = o.receivedBefore !== undefined && o.receivedBefore !== o.received;
+      drawNeed(ctx, v, need, fresh, o.bump ?? 0);
     }
+    ctx.restore();
   }
 
   drawClearing(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, v: number, k: number, reduced: boolean): void {
@@ -224,10 +285,10 @@ class GemArt implements PieceArt {
     ctx.scale(size / 100, size / 100);
     ctx.globalAlpha = Math.max(0, 1 - k * 1.2);
     ctx.save();
-    ctx.translate(50, 44);
+    ctx.translate(50, 50);
     const sc = reduced ? 1 : 1 + k * 0.5;
     ctx.scale(sc, sc);
-    drawGem(ctx, v, 1, 'done');
+    drawGem(ctx, v, { fill: 1, mood: 'done', pulse: 1 });
     ctx.restore();
     if (!reduced) {
       ctx.globalAlpha = 1 - k;
@@ -237,7 +298,7 @@ class GemArt implements PieceArt {
       for (let i = 0; i < 6; i++) {
         const a = (i / 6) * Math.PI * 2 + k;
         const d = 18 + k * 46;
-        sparkPath(ctx, 50 + Math.cos(a) * d, 44 + Math.sin(a) * d, 7 * (1 - k) + 2);
+        sparkPath(ctx, 50 + Math.cos(a) * d, 50 + Math.sin(a) * d, 7 * (1 - k) + 2);
         ctx.fill();
       }
     }
@@ -257,18 +318,12 @@ class GemArt implements PieceArt {
       const ctx = cv.getContext('2d')!;
       ctx.scale(1.6, 1.6);
       ctx.translate(50, 50);
-      drawGem(ctx, v, 0.4, 'idle');
+      drawGem(ctx, v, { fill: 0.3, mood: 'idle' });
       url = cv.toDataURL('image/png');
       this.icons.set(v, url);
     }
     return url;
   }
-}
-
-function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
-  ctx.beginPath();
-  if (ctx.roundRect) ctx.roundRect(x, y, w, h, r);
-  else ctx.rect(x, y, w, h);
 }
 
 export const gemTheme: Theme = {
@@ -282,7 +337,7 @@ export const gemTheme: Theme = {
     notCleared: 'still dark',
     unit: 'spark',
     rule:
-      '<b>Light every spark.</b> A gem needs one spark per side. Each touching gem gives as many sparks as it has sides. All lit, it shatters into light. Too many and they turn red. Same gems shatter together.',
+      '<b>Count every gem down to 0.</b> The number is the sparks a gem still needs. Each gem gives one spark per side to the gems it touches. At exactly 0 it breaks. Below 0 it turns red and waits for a neighbor to leave. Same gems break together.',
     mouseHint: 'Hover a column to preview where your gem lands.',
     boost: 'Lantern',
     winTitle: 'Brilliant!',

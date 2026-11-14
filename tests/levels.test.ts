@@ -43,17 +43,49 @@ describe('tutorial solutions', () => {
     expect(levelResult(def, g).stars).toBe(3);
   });
 
-  it('t2: ginger between kittens, then a kitten splash', () => {
-    const { g } = play('t2', [1, 1]);
+  it('t2: a round gem then a lens add up to the triangle', () => {
+    const def = levelById('t2')!;
+    const g = new Game(1, levelConfig(def));
+    g.drop(def.tips![0].col!);
+    expect(g.won).toBe(false);
+    g.drop(def.tips![1].col!);
     expect(g.won).toBe(true);
-    expect(g.sleptBySize[2]).toBe(1);
-    expect(g.sleptBySize[1]).toBe(3);
+    expect(g.sleptBySize[3]).toBe(1);
   });
 
-  it('t3: the blue next to the blues makes a ×2 chain', () => {
+  it('t3: breaking the lens frees the stuck gem, a x2 chain clears the board', () => {
     const { g } = play('t3', [1]);
+    expect(g.won).toBe(true);
+    expect(g.longestChain).toBe(2);
+  });
+
+  it('t4: one triangle takes its twins, then the gems above fall and break', () => {
+    const { g } = play('t4', [1]);
     expect(g.longestChain).toBe(2);
     expect(g.won).toBe(true);
+  });
+
+  it('t5: swap first, then the lens pair clears', () => {
+    const def = levelById('t5')!;
+    const g = new Game(1, levelConfig(def));
+    g.drop(1);
+    expect(g.won).toBe(false);
+    const h = new Game(1, levelConfig(def));
+    h.swap();
+    h.drop(1);
+    expect(h.won).toBe(true);
+  });
+
+  it('every tutorial tip points at the move that works', () => {
+    for (const def of LEVELS.filter((l) => l.world === 'tutorial')) {
+      const g = new Game(1, levelConfig(def));
+      for (const tip of def.tips ?? []) {
+        if (g.over) break;
+        if (tip.swap) g.swap();
+        g.drop(tip.col!);
+      }
+      expect(g.won, def.id).toBe(true);
+    }
   });
 
   it('t1: a wasted drop is still recoverable, running out of drops loses', () => {
@@ -88,11 +120,11 @@ describe('goals and results', () => {
   });
 
   it('counts sleeping cats by size', () => {
-    const g = new Game(1, levelConfig(levelById('t2')!));
+    const g = new Game(1, levelConfig(levelById('t3')!));
     g.drop(1);
     expect(goalMet({ kind: 'sleep', count: 1, size: 2 }, g)).toBe(true);
-    expect(goalMet({ kind: 'sleep', count: 1, size: 1 }, g)).toBe(false);
-    expect(goalProgress({ kind: 'clear' }, g)).toEqual({ have: 1, need: 3 });
+    expect(goalMet({ kind: 'sleep', count: 3, size: 1 }, g)).toBe(false);
+    expect(goalProgress({ kind: 'clear' }, g)).toEqual({ have: 3, need: 3 });
   });
 
   it('levels without rising never add rows', () => {
