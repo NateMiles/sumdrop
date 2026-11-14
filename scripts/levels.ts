@@ -41,7 +41,11 @@ function play(def: LevelDef, bot: Bot, seed: number): { won: boolean; score: num
   const g = new Game(seed, levelConfig(def));
   let s = seed * 31 + 7;
   const rnd = () => ((s = (s * 1103515245 + 12345) % 2147483648) / 2147483648);
-  while (!g.over) g.drop(bot(g, rnd));
+  // The bots stop as soon as they meet the goal and bank the drops left.
+  while (!g.over) {
+    g.drop(bot(g, rnd));
+    g.finish();
+  }
   const r = levelResult(def, g);
   return { won: g.won, score: r.score };
 }

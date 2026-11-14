@@ -138,6 +138,8 @@ export function levelConfig(def: LevelDef): GameConfig {
     bombs: def.bombs,
     stones: def.stones,
     goalMet: (g) => goalMet(def.goal, g),
+    // Levels with star scores let you play on for more stars; tutorials end at the goal.
+    keepGoing: def.stars[1] > 0,
   };
 }
 
