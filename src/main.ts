@@ -202,12 +202,18 @@ function renderHud(): void {
         : g.kind === 'chain'
           ? 'Chain'
           : g.kind === 'stones'
-            ? 'Stones left'
+            ? g.count
+              ? 'Stones'
+              : 'Stones left'
             : g.kind === 'ice'
               ? 'Ice left'
               : `${pieces} left`;
   $('#goal-num').textContent =
-    g.kind === 'score' ? String(g.target) : g.kind === 'sleep' || g.kind === 'chain' ? `${Math.min(p.have, p.need)}/${p.need}` : String(p.need - p.have);
+    g.kind === 'score'
+      ? String(g.target)
+      : g.kind === 'sleep' || g.kind === 'chain' || (g.kind === 'stones' && g.count)
+        ? `${Math.min(p.have, p.need)}/${p.need}`
+        : String(p.need - p.have);
   $('#drops').textContent = String(game.dropsLeft);
   $('#drops-stat').classList.toggle('low', game.dropsLeft <= 3);
   if (def.stars[1]) {

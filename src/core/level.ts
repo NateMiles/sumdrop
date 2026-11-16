@@ -10,8 +10,8 @@ export type Goal =
   | { kind: 'chain'; length: number }
   /** Clear every piece on the board. */
   | { kind: 'clear' }
-  /** Break every stone. */
-  | { kind: 'stones' }
+  /** Break every stone, or this many stones (for boards where stones keep rising). */
+  | { kind: 'stones'; count?: number }
   /** Melt all the ice. */
   | { kind: 'ice' };
 
@@ -70,7 +70,7 @@ export function goalMet(goal: Goal, game: Game): boolean {
     case 'clear':
       return game.grid.every((row) => row.every((t) => !t));
     case 'stones':
-      return game.stonesLeft === 0;
+      return goal.count ? game.stonesBroken >= goal.count : game.stonesLeft === 0;
     case 'ice':
       return game.iceLeft === 0;
   }
@@ -90,7 +90,7 @@ export function goalProgress(goal: Goal, game: Game): { have: number; need: numb
       return { have: game.slept, need: game.slept + left };
     }
     case 'stones':
-      return { have: game.stonesBroken, need: game.stonesBroken + game.stonesLeft };
+      return goal.count ? { have: game.stonesBroken, need: goal.count } : { have: game.stonesBroken, need: game.stonesBroken + game.stonesLeft };
     case 'ice':
       return { have: game.thawed, need: game.thawed + game.iceLeft };
   }
@@ -119,7 +119,7 @@ export function goalText(goal: Goal, w: GoalWords = NEUTRAL_WORDS): string {
     case 'clear':
       return `${w.clearVerb} all the ${w.pieces}`;
     case 'stones':
-      return 'Break every stone';
+      return goal.count ? `Break ${goal.count} stones` : 'Break every stone';
     case 'ice':
       return 'Melt all the ice';
   }

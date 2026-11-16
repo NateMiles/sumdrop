@@ -31,7 +31,6 @@ const CUTS: Record<number, Cut> = {
 const SPARK_LIT = '#fff6d6';
 const SPARK_NEW = '#ffd27a';
 
-const OVER_RED = '#ff4d5a';
 
 /** Gem radius as a share of the cell: big enough to hold its number, bigger gems bigger. */
 const gemRadius = (v: number) => 0.3 + (v - 1) * 0.026;
@@ -128,16 +127,6 @@ function drawGem(ctx: CanvasRenderingContext2D, v: number, look: GemLook): void 
     ctx.fill();
     ctx.restore();
   }
-  if (over) {
-    ctx.save();
-    ctx.shadowColor = OVER_RED;
-    ctx.shadowBlur = 14;
-    path(ctx, pts);
-    ctx.fillStyle = OVER_RED;
-    ctx.fill();
-    ctx.restore();
-  }
-
   // Body: diagonal gradient from light to dark. Empty gems are a little dull.
   const grad = ctx.createLinearGradient(-r, -r, r, r);
   grad.addColorStop(0, c.light);
@@ -177,15 +166,16 @@ function drawGem(ctx: CanvasRenderingContext2D, v: number, look: GemLook): void 
     ctx.fill();
   }
   if (over) {
-    // Too many: dark and smoky red. Stuck until a neighbor leaves.
+    // Too many: dimmed and quiet, so it reads as "stuck for now" and the gems you can
+    // work with stand out. It wakes up when a neighbor leaves.
     path(ctx, pts);
-    ctx.fillStyle = 'rgba(70,0,18,.55)';
+    ctx.fillStyle = 'rgba(18,14,36,.55)';
     ctx.fill();
   }
 
   // Cracks spread as the gem fills: light leaks through them.
   const cracks = cracksFor(v, r);
-  const shown = over ? cracks.length : glow <= 0 ? 0 : Math.max(1, Math.ceil(glow * cracks.length));
+  const shown = over ? 0 : glow <= 0 ? 0 : Math.max(1, Math.ceil(glow * cracks.length));
   if (shown) {
     const hot = mood === 'close' || mood === 'done';
     ctx.lineCap = 'round';
@@ -214,8 +204,8 @@ function drawGem(ctx: CanvasRenderingContext2D, v: number, look: GemLook): void 
   ctx.restore();
 
   path(ctx, pts);
-  ctx.lineWidth = over ? 3.4 : 2.2;
-  ctx.strokeStyle = over ? OVER_RED : c.dark;
+  ctx.lineWidth = over ? 2.4 : 2.2;
+  ctx.strokeStyle = over ? 'rgba(255,90,95,.7)' : c.dark;
   ctx.stroke();
 }
 
