@@ -7,6 +7,7 @@
     "dev": "vite --host",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host",
+    "web": "tsc --noEmit && vite build --outDir docs --emptyOutDir && touch docs/.nojekyll",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "sim": "vite-node scripts/balance.ts",

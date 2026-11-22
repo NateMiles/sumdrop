@@ -35,6 +35,12 @@ npm run sim        # balance check: random vs. lookahead bot over 200 seeded gam
 npm run levels     # level tuning: bot win rates and scores for every level
 ```
 
+## Play on the web (iPad)
+
+The game is hosted on GitHub Pages from the `docs/` folder at https://natemiles.github.io/sumdrop/. Open it in Safari, tap Share, then **Add to Home Screen** to get a fullscreen app icon that also works offline.
+
+After changing the game, run `npm run web` (builds into `docs/`) and commit `docs/` so the hosted page updates. Icons come from `public/icon.svg`; `node scripts/icons.cjs` re-renders the PNGs.
+
 ## Run on a phone
 
 Prerequisites: Xcode for iOS (macOS only), Android Studio for Android.
