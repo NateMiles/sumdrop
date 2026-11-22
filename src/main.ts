@@ -12,6 +12,7 @@ import { BoardView } from './ui/board';
 import { Sfx } from './ui/audio';
 import { DEFAULT_THEME, type Theme, themeById } from './themes';
 import { haptics, storage } from './ui/platform';
+import { Capacitor } from '@capacitor/core';
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector(sel) as T;
 const newSeed = () => (Math.random() * 2 ** 31) | 0;
@@ -604,3 +605,8 @@ void boot();
   preview: (col: number) => previewDrop(game.grid, col, game.current, game.currentBomb),
   smash,
 };
+
+// On the web (e.g. added to an iPad Home Screen), a service worker lets the game open offline.
+if (!Capacitor.isNativePlatform() && 'serviceWorker' in navigator && location.protocol === 'https:') {
+  navigator.serviceWorker.register('./sw.js').catch(() => {});
+}

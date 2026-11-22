@@ -23,6 +23,11 @@ body {
   height: 100%;
   margin: 0;
 }
+html {
+  /* No double-tap zoom on iPad and phones. */
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
+}
 body {
   background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-mid) 55%, #6b3f66 85%, var(--dusk) 100%) fixed;
   color: var(--ink);
@@ -622,4 +627,19 @@ body[data-art='gems'] #stars {
   color: #2a1a08;
   border-color: transparent;
   margin-right: 6px;
+}
+
+/* ---------- tablets (iPad) ---------- */
+/* Everything is sized in rem, so a bigger root font scales the HUD, cards and map; the wider column gives the board room. */
+@media (min-width: 700px) and (min-height: 700px) {
+  html {
+    font-size: 20px;
+  }
+  .app,
+  .map {
+    max-width: 760px;
+  }
+  .card {
+    max-width: 440px;
+  }
 }
