@@ -1,4 +1,4 @@
-import { type Grid, type Tile, type Wave, PREVIEW_ID, applyGravity, cloneGrid, isStone, neighborSum, previewDrop } from '../core/rules';
+import { type Cell, type Grid, type Tile, type Wave, PREVIEW_ID, applyGravity, canCount, cloneGrid, isStone, neighborSum, previewDrop } from '../core/rules';
 import type { DropOutcome, Game } from '../core/game';
 import { palette } from './theme';
 import { DEFAULT_THEME, moodFor, type Mood, type PieceArt, type ThemeWords } from '../themes';
@@ -48,6 +48,13 @@ export class BoardView {
   private shake = 0;
   /** Expanding rings where pieces clear. */
   private rings: { x: number; y: number; col: string; life: number }[] = [];
+  /**
+   * Spark beams: light travelling from a giving piece into the piece it fills, so you
+   * can see why something breaks. Twins (same shapes breaking together) get a gold link.
+   */
+  /** The piece just dropped: its beams were already shown when it landed. */
+  private droppedId = -1;
+  private beams: { r1: number; c1: number; r2: number; c2: number; label: string | null; col: string; life: number }[] = [];
   /** Bomb blasts: a big flash over the 3×3 area. */
   private blasts: { x: number; y: number; life: number }[] = [];
   /** Board tint pulse during chains, 1 → 0. */
@@ -83,6 +90,7 @@ export class BoardView {
     this.banner = null;
     this.rings = [];
     this.blasts = [];
+    this.beams = [];
     this.chainTint = 0;
     this.warnSince = -1;
     this.hover = Math.min(this.hover, this.game.cols - 1);
@@ -173,12 +181,17 @@ export class BoardView {
   private async replay(out: DropOutcome): Promise<void> {
     if (out.placed) {
       const { tile, row, col } = out.placed;
+      this.droppedId = tile.id;
       this.view[row][col] = { ...tile };
       this.vis.set(tile.id, { y: -1, vy: 0, fill: 0, flash: 0, bump: 0 });
       this.sfx.drop();
       haptics.tap();
       await wait(200);
+      // The drop gives its size to every piece it touches: show that first.
+      const gave = this.giveBeams(row, col);
+      if (gave) await wait(this.reduced ? 160 : 380);
     } else {
+      this.droppedId = -1;
       // Hammer: a hard knock, then the cascade.
       this.bump(0.7);
       haptics.thud();
@@ -208,7 +221,10 @@ export class BoardView {
         this.banner = { chain: wave.chain, life: 1 };
         this.chainTint = 1;
       }
-      await wait(wave.chain === 1 ? 140 : 320);
+      // Show why each piece breaks: sparks fly in from the pieces that filled it.
+      // From the second step on this is what links a fall to the break it causes.
+      const why = this.fillBeams(wave.popped, wave.chain === 1 ? this.droppedId : -1);
+      await wait(why ? (this.reduced ? 200 : 460) : wave.chain === 1 ? 140 : 320);
       let blast = false;
       wave.popped.forEach((p, i) => {
         this.view[p.r][p.c] = null;
@@ -244,6 +260,57 @@ export class BoardView {
     }
   }
 
+  /** Beams from the piece at (r, c) into each piece it touches. Returns how many. */
+  private giveBeams(r: number, c: number): number {
+    const t = this.view[r][c];
+    if (!t || !t.v) return 0;
+    let n = 0;
+    for (const [dr, dc] of NEIGHBORS) {
+      const o = this.view[r + dr]?.[c + dc];
+      if (!o || isStone(o)) continue;
+      this.beams.push({ r1: r, c1: c, r2: r + dr, c2: c + dc, label: `+${t.v}`, col: this.art.color(t.v), life: 1 });
+      n++;
+    }
+    return n;
+  }
+
+  /**
+   * For pieces about to break: beams from every piece that filled them (when they are
+   * exactly full), plus twin links. Returns how many beams were added.
+   */
+  private fillBeams(popped: { r: number; c: number; tile: Tile }[], skipFrom = -1): number {
+    let n = 0;
+    for (const p of popped) {
+      const t = this.view[p.r][p.c];
+      if (!canCount(t) || neighborSum(this.view, p.r, p.c) !== t.v) continue;
+      for (const [dr, dc] of NEIGHBORS) {
+        const o = this.view[p.r + dr]?.[p.c + dc];
+        if (!o || !o.v || o.id === skipFrom) continue;
+        this.beams.push({ r1: p.r + dr, c1: p.c + dc, r2: p.r, c2: p.c, label: `+${o.v}`, col: this.art.color(o.v), life: 1 });
+        n++;
+      }
+    }
+    return n + this.twinBeams(popped);
+  }
+
+  /** Gold links between touching same-shape pieces that break together. */
+  private twinBeams(popped: Cell[]): number {
+    const at = new Set(popped.map((p) => `${p.r},${p.c}`));
+    let n = 0;
+    for (const p of popped) {
+      const t = this.view[p.r][p.c];
+      if (!canCount(t)) continue;
+      for (const [dr, dc] of [[0, 1], [1, 0]] as const) {
+        const o = this.view[p.r + dr]?.[p.c + dc];
+        if (o && canCount(o) && o.v === t.v && at.has(`${p.r + dr},${p.c + dc}`)) {
+          this.beams.push({ r1: p.r, c1: p.c, r2: p.r + dr, c2: p.c + dc, label: null, col: GLOW, life: 1 });
+          n++;
+        }
+      }
+    }
+    return n;
+  }
+
   private burst(r: number, c: number, col: string): void {
     for (let i = 0; i < 14; i++) {
       const a = Math.random() * Math.PI * 2;
@@ -272,13 +339,11 @@ export class BoardView {
 
     const canPreview = !this.busy && !game.over && !this.hammer && (this.mouse || this.pressing);
     const pv = canPreview ? previewDrop(game.grid, this.hover, game.current, game.currentBomb) : null;
-    // The free preview shows the drop's direct effect: the warmth each touching piece
-    // would gain, which pieces clear right away, and which slide down after. The night
-    // light adds the rest of the chain, step by step.
-    const waveOf = (id: number) => {
-      const w = pv?.waveOf.get(id) ?? -1;
-      return w === 0 || (w > 0 && this.nightLight) ? w : -1;
-    };
+    // The free preview shows only the cause: where the piece lands, which pieces it
+    // touches and how much it gives each (+N). Working out what breaks is the puzzle.
+    // The night light (a limited boost) shows the outcome: what breaks, what falls and
+    // the whole chain, step by step.
+    const waveOf = (id: number) => (this.nightLight ? pv?.waveOf.get(id) ?? -1 : -1);
     let pvGrid: Grid | null = null;
     if (pv) {
       pvGrid = cloneGrid(game.grid);
@@ -368,9 +433,10 @@ export class BoardView {
         // Next to the previewed drop: show the warmth it would get, the new part glowing,
         // and a ring saying what happens (gold: clears, mint: warmer, red: too much).
         const touched = !!pvGrid && isNeighborOfPreview(r, c);
-        const warmth = touched ? neighborSum(pvGrid!, r, c) : sum;
+        const showNew = touched && this.nightLight;
+        const warmth = showNew ? neighborSum(pvGrid!, r, c) : sum;
         let ring: string | null = null;
-        if (touched && wv !== 0) ring = warmth > tl.v ? RING_OVER : RING_WARM;
+        if (touched) ring = !this.nightLight ? RING_TOUCH : wv === 0 ? null : warmth > tl.v ? RING_OVER : RING_WARM;
         // Falling pieces leave a short trail so you can follow the cascade.
         if (vs.vy > 0.02 && !this.reduced) {
           for (const [k, a] of [[0.9, 0.22], [1.8, 0.1]] as const) {
@@ -379,12 +445,12 @@ export class BoardView {
         }
         drawPieceTile(ctx, this.art, g.x0 + c * g.cell, g.y0 + vs.y * g.cell, g.cell, tl.v, {
           warmth,
-          warmthBefore: touched ? sum : undefined,
+          warmthBefore: showNew ? sum : undefined,
           ring,
           ringPulse: pulse,
           gain: touched ? `+${game.current}` : null,
           // A touched piece shows the state it would end up in: its new number, cracks or red.
-          ratio: touched ? Math.min(1, warmth / tl.v) : vs.fill,
+          ratio: showNew ? Math.min(1, warmth / tl.v) : vs.fill,
           mood: moodFor(warmth / tl.v),
           pulse,
           bump: vs.bump,
@@ -403,7 +469,7 @@ export class BoardView {
     if (pv) {
       // Slide arrows: where pieces fall after each visible step clears.
       pv.fallsByWave.forEach((falls, i) => {
-        if (i > 0 && !this.nightLight) return;
+        if (!this.nightLight) return;
         for (const f of falls) drawFallArrow(ctx, g.x0 + (f.c + 0.5) * g.cell, g.y0 + (f.fromRow + 0.5) * g.cell, g.y0 + (f.toRow + 0.5) * g.cell, g.cell, i, t);
       });
       const lf = pv.landingFill;
@@ -461,6 +527,48 @@ export class BoardView {
       ctx.strokeStyle = palette.outline;
       ctx.lineWidth = 2;
       ctx.stroke();
+      ctx.restore();
+    }
+
+    // Spark beams: a dot of light travels from giver to receiver, leaving a glowing
+    // trail, and the amount pops up at the receiver as it arrives.
+    this.beams = this.beams.filter((b) => (b.life -= dt / (this.reduced ? 300 : 560)) > 0);
+    for (const b of this.beams) {
+      const k = Math.min(1, (1 - b.life) / 0.6);
+      const x1 = g.x0 + (b.c1 + 0.5) * g.cell;
+      const y1 = g.y0 + (b.r1 + 0.5) * g.cell;
+      const x2 = g.x0 + (b.c2 + 0.5) * g.cell;
+      const y2 = g.y0 + (b.r2 + 0.5) * g.cell;
+      const fade = Math.min(1, b.life * 3);
+      ctx.save();
+      ctx.globalAlpha = fade;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = b.col;
+      ctx.shadowColor = b.col;
+      ctx.shadowBlur = 12;
+      ctx.lineWidth = b.label ? g.cell * 0.07 : g.cell * 0.1;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x1 + (x2 - x1) * k, y1 + (y2 - y1) * k);
+      ctx.stroke();
+      if (b.label) {
+        const px = x1 + (x2 - x1) * k;
+        const py = y1 + (y2 - y1) * k;
+        ctx.beginPath();
+        ctx.arc(px, py, g.cell * 0.09, 0, Math.PI * 2);
+        ctx.fillStyle = '#fff6d6';
+        ctx.fill();
+        if (k >= 1) {
+          // The amount, at the side of the receiver the spark came in from.
+          ctx.shadowBlur = 0;
+          ctx.font = `800 ${g.cell * 0.26}px "Baloo 2", system-ui, sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          const lx = x2 - (x2 - x1) * 0.3;
+          const ly = y2 - (y2 - y1) * 0.3;
+          outlinedText(ctx, b.label, lx, ly, 4, GLOW);
+        }
+      }
       ctx.restore();
     }
 
@@ -547,7 +655,7 @@ export class BoardView {
       ctx.textAlign = leftSide ? 'left' : 'right';
       ctx.fillText('NEXT', leftSide ? nx + ns + 6 : nx - 6, hy + g.cell / 2);
       const firstCount = pv ? [...pv.waveOf.values()].filter((w) => w === 0).length : 0;
-      if (pv && firstCount) {
+      if (pv && firstCount && this.nightLight) {
         const label =
           this.nightLight && pv.waves > 1
             ? `Chain ×${pv.waves}  +${pv.points}`
@@ -643,6 +751,8 @@ function neighborValues(g: Grid, r: number, c: number): number[] {
 const STONE_DUST = '#a7abbd';
 const ICE_EDGE = '#cfeeff';
 const RING_WARM = '#8fd5b8';
+/** Free preview: a plain white ring on each piece the drop touches. */
+const RING_TOUCH = 'rgba(251,243,234,.9)';
 const RING_OVER = '#ff5a5f';
 const GLOW = '#ffd27a';
 
